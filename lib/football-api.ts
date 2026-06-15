@@ -99,7 +99,21 @@ export async function fetchESPNFixtures(): Promise<ApiMatch[]> {
       const parseScore = (s: string | undefined) =>
         !isPre && s != null && s !== '' ? parseInt(s, 10) : null;
 
-      const stage = (comp.altGameNote ?? '').replace(/^FIFA World Cup,\s*/i, '').trim();
+      // For group matches altGameNote is "FIFA World Cup, Group A" → "Group A"
+      // For knockout matches altGameNote is just "FIFA World Cup"; use season.slug instead
+      let stage = (comp.altGameNote ?? '').replace(/^FIFA World Cup,\s*/i, '').trim();
+      if (!stage || stage === 'FIFA World Cup') {
+        const slug: string = event.season?.slug ?? '';
+        const SLUG_LABELS: Record<string, string> = {
+          'round-of-32': 'Round of 32',
+          'round-of-16': 'Round of 16',
+          'quarterfinals': 'Quarterfinal',
+          'semifinals': 'Semifinal',
+          'third-place': 'Third Place',
+          'final': 'Final',
+        };
+        stage = SLUG_LABELS[slug] ?? slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      }
 
       all.push({
         id: parseInt(event.id, 10),

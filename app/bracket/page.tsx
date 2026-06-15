@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { db } from '@/db';
 import { matches, predictions } from '@/db/schema';
-import { eq, not, like, and, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -92,16 +92,11 @@ export default async function BracketPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  // Fetch all knockout matches (not group stage)
-  const knockoutMatches = await db
-    .select()
-    .from(matches)
-    .where(and(
-      not(like(matches.stage, '%Group%')),
-      sql`${matches.stage} is not null`,
-      sql`${matches.stage} != ''`
-    ))
-    .orderBy(matches.kickoffAt);
+  // Group stage matches have stage "Group A" through "Group L"; everything else is knockout
+  const allMatchRows = await db.select().from(matches).orderBy(matches.kickoffAt);
+  const knockoutMatches = allMatchRows.filter(m =>
+    m.stage != null && m.stage.trim() !== '' && !/^Group [A-Z]$/i.test(m.stage)
+  );
 
   // Fetch user's predictions for these matches
   const matchIds = knockoutMatches.map(m => m.id);
