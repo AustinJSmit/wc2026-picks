@@ -64,13 +64,13 @@ function StatsCard({ homeTeam, awayTeam, homeCrest, awayCrest, goals, bookings, 
 
   const statRows = (home && away) ? [
     { label: 'Shots', h: home.totalShots, a: away.totalShots },
-    { label: 'Shots on Target', h: home.shotsOnGoal, a: away.shotsOnGoal },
+    { label: 'Shots on target', h: home.shotsOnGoal, a: away.shotsOnGoal },
     { label: 'Possession', h: home.possession, a: away.possession },
     { label: 'Passes', h: home.totalPasses, a: away.totalPasses },
-    { label: 'Pass Accuracy', h: home.passAccuracy, a: away.passAccuracy },
+    { label: 'Pass accuracy', h: home.passAccuracy, a: away.passAccuracy },
     { label: 'Fouls', h: home.fouls, a: away.fouls },
-    { label: 'Yellow Cards', h: home.yellowCards, a: away.yellowCards },
-    { label: 'Red Cards', h: home.redCards, a: away.redCards },
+    { label: 'Yellow cards', h: home.yellowCards, a: away.yellowCards },
+    { label: 'Red cards', h: home.redCards, a: away.redCards },
     { label: 'Offsides', h: home.offsides, a: away.offsides },
     { label: 'Corners', h: home.corners, a: away.corners },
   ].filter(r => r.h != null || r.a != null) : [];
