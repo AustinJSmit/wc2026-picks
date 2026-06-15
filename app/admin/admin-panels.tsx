@@ -41,7 +41,7 @@ export default function AdminPanels({ predictionCount, playerCount, allUsers, cu
 }) {
   const router = useRouter();
   const [modal, setModal] = useState<'resetPreds' | 'fullReset' | 'transfer' | null>(null);
-  const [toUserId, setToUserId] = useState('');
+  const [toUserId, setToUserId] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -160,7 +160,7 @@ export default function AdminPanels({ predictionCount, playerCount, allUsers, cu
             <p className="text-sm text-muted-foreground italic">No other players have joined yet.</p>
           ) : (
             <>
-              <Select value={toUserId} onValueChange={setToUserId}>
+              <Select value={toUserId ?? ''} onValueChange={(v) => setToUserId(v || null)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choose a player…" />
                 </SelectTrigger>
