@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { matches, predictions } from '@/db/schema';
 import { eq, isNull, desc, and, or } from 'drizzle-orm';
-import { fetchWCMatches, findESPNEventId, fetchESPNMatchDetail } from '@/lib/football-api';
+import { fetchESPNFixtures, fetchESPNMatchDetail } from '@/lib/football-api';
 import type { ApiMatch } from '@/lib/football-api';
 import { calculatePoints } from '@/lib/scoring';
 
 export async function POST() {
   let apiMatches: ApiMatch[];
   try {
-    apiMatches = await fetchWCMatches();
+    apiMatches = await fetchESPNFixtures();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: `API fetch failed: ${msg}` }, { status: 500 });
@@ -93,10 +93,6 @@ export async function POST() {
       .select({
         id: matches.id,
         apiId: matches.apiId,
-        espnId: matches.espnId,
-        homeTeam: matches.homeTeam,
-        awayTeam: matches.awayTeam,
-        kickoffAt: matches.kickoffAt,
         homeScore: matches.homeScore,
         awayScore: matches.awayScore,
         goals: matches.goals,
@@ -108,26 +104,17 @@ export async function POST() {
 
     for (const match of needsDetail) {
       try {
-        // Get ESPN event ID — use cached value or look up by date + team names
-        let espnId = match.espnId;
-        if (!espnId) {
-          espnId = await findESPNEventId(match.kickoffAt!, match.homeTeam, match.awayTeam);
-          if (espnId) {
-            await db.update(matches).set({ espnId }).where(eq(matches.id, match.id));
-          }
-        }
-
-        if (!espnId) {
-          detailResults.push({ apiId: match.apiId ?? '', status: 'error', goalsFound: 0, error: 'ESPN event not found' });
+        // apiId is now the ESPN event ID — use it directly
+        if (!match.apiId) {
+          detailResults.push({ apiId: match.apiId ?? '', status: 'error', goalsFound: 0, error: 'No ESPN ID' });
           continue;
         }
 
-        const detail = await fetchESPNMatchDetail(espnId);
+        const detail = await fetchESPNMatchDetail(match.apiId);
 
         const totalExpected = (match.homeScore ?? 0) + (match.awayScore ?? 0);
-        // ESPN sometimes misses goal events (own-goal encoding, etc.) so we accept partial data.
-        // We already validated the correct match via team-name lookup in findESPNEventId.
-        // Only reject if ESPN returned 0 goals AND we expect goals (could be a fetch problem).
+        // Accept partial goal data — ESPN keyEvents sometimes misses own-goals or penalty encodings.
+        // Only reject if ESPN returned 0 goals when we expect goals (likely a failed fetch).
         const validData = totalExpected === 0 || detail.goals.length > 0;
         const goalCountMatches = detail.goals.length === totalExpected;
         const goalsAlreadyFilled = match.goals !== null;
@@ -173,9 +160,6 @@ export async function POST() {
     // non-fatal; main sync already succeeded
   }
 
-  // Count how many finished matches got goals from the competition endpoint this sync
-  const goalsFromCompetitionEndpoint = apiMatches.filter(m => m.goals.length > 0 && m.status === 'FINISHED').length;
-
   return NextResponse.json({
     ok: true,
     matchesSynced: synced,
@@ -183,6 +167,5 @@ export async function POST() {
     failed,
     detailsFilled,
     detailResults,
-    goalsFromCompetitionEndpoint,
   });
 }

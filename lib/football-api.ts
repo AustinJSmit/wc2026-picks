@@ -1,17 +1,3 @@
-const BASE = 'https://v3.football.api-sports.io';
-
-function headers() {
-  return {
-    'x-apisports-key': process.env.API_FOOTBALL_KEY ?? process.env.FOOTBALL_API_KEY ?? '',
-  };
-}
-
-function normalizeStatus(status: string): string {
-  if (['FT', 'AET', 'PEN'].includes(status)) return 'FINISHED';
-  if (['1H', '2H', 'HT', 'ET', 'BT', 'P', 'INT', 'LIVE'].includes(status)) return 'LIVE';
-  return 'SCHEDULED';
-}
-
 export interface ApiGoal {
   minute: number;
   injuryTime?: number | null;
@@ -69,71 +55,72 @@ export interface ApiMatch {
   bookings: ApiBooking[];
 }
 
-// Raw shape from API-Football fixtures endpoint
-interface AfFixture {
-  fixture: { id: number; date: string; status: { short: string } };
-  league: { round: string | null };
-  teams: { home: { name: string; logo: string }; away: { name: string; logo: string } };
-  goals: { home: number | null; away: number | null };
+export interface ApiStandingEntry {
+  rank: number;
+  group: string;
+  team: { id: number; name: string; logo: string };
+  points: number;
+  goalsDiff: number;
+  all: {
+    played: number; win: number; draw: number; lose: number;
+    goals: { for: number; against: number };
+  };
+  form: string;
 }
 
-function normalizeName(s: string): string {
-  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+// ─── ESPN Fixtures (replaces API-Football) ───────────────────────────────────
+
+function normalizeESPNStatus(status: { type: { state: string; completed: boolean } }): string {
+  if (status.type.completed) return 'FINISHED';
+  if (status.type.state === 'in') return 'LIVE';
+  return 'SCHEDULED';
 }
 
-// Known ESPN↔API-Football team name mismatches after normalization
-const TEAM_ALIASES: Record<string, string> = {
-  'turkiye': 'turkey',
-  'turkey': 'turkiye',
-  'south korea': 'korea republic',
-  'korea republic': 'south korea',
-  'united states': 'usa',
-  'usa': 'united states',
-  'usmnt': 'usa',
-  'ir iran': 'iran',
-  'iran': 'ir iran',
-  'ivory coast': 'cote d ivoire',
-  'cote d ivoire': 'ivory coast',
-};
+export async function fetchESPNFixtures(): Promise<ApiMatch[]> {
+  const all: ApiMatch[] = [];
+  // WC 2026 runs June 12 – July 19; fetch both months in parallel
+  const [junRes, julRes] = await Promise.all([
+    fetch('https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=202606&limit=100', { next: { revalidate: 0 } }),
+    fetch('https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=202607&limit=100', { next: { revalidate: 0 } }),
+  ]);
 
-function nameMatches(a: string, b: string): boolean {
-  return a.includes(b) || b.includes(a) || TEAM_ALIASES[a] === b || TEAM_ALIASES[b] === a;
-}
-
-export async function findESPNEventId(
-  date: Date,
-  homeTeam: string,
-  awayTeam: string,
-): Promise<string | null> {
-  const normHome = normalizeName(homeTeam);
-  const normAway = normalizeName(awayTeam);
-
-  // Try day-before, same day, and day-after to handle UTC/local-time boundary mismatches
-  for (const offset of [-1, 0, 1]) {
-    const d = new Date(date.getTime() + offset * 86400000);
-    const yyyymmdd = d.toISOString().slice(0, 10).replace(/-/g, '');
-    const res = await fetch(
-      `https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=${yyyymmdd}&limit=50`,
-      { next: { revalidate: 0 } },
-    );
+  for (const res of [junRes, julRes]) {
     if (!res.ok) continue;
     const data = await res.json();
 
     for (const event of data.events ?? []) {
-      const comps: Array<{ team: { displayName: string }; homeAway: string }> =
-        event.competitions?.[0]?.competitors ?? [];
-      const home = comps.find((c) => c.homeAway === 'home');
-      const away = comps.find((c) => c.homeAway === 'away');
+      const comp = event.competitions?.[0];
+      if (!comp) continue;
+      const home = comp.competitors?.find((c: { homeAway: string }) => c.homeAway === 'home');
+      const away = comp.competitors?.find((c: { homeAway: string }) => c.homeAway === 'away');
       if (!home || !away) continue;
-      const normH = normalizeName(home.team.displayName);
-      const normA = normalizeName(away.team.displayName);
-      if (nameMatches(normH, normHome) && nameMatches(normA, normAway)) {
-        return String(event.id);
-      }
+
+      const isPre = comp.status?.type?.state === 'pre';
+      const parseScore = (s: string | undefined) =>
+        !isPre && s != null && s !== '' ? parseInt(s, 10) : null;
+
+      const stage = (comp.altGameNote ?? '').replace(/^FIFA World Cup,\s*/i, '').trim();
+
+      all.push({
+        id: parseInt(event.id, 10),
+        homeTeam: { name: home.team.displayName, crest: home.team.logo ?? '' },
+        awayTeam: { name: away.team.displayName, crest: away.team.logo ?? '' },
+        utcDate: comp.date ?? event.date,
+        status: normalizeESPNStatus(comp.status),
+        stage,
+        group: null,
+        score: { fullTime: { home: parseScore(home.score), away: parseScore(away.score) } },
+        goals: [],
+        bookings: [],
+      });
     }
   }
-  return null;
+
+  if (all.length === 0) throw new Error('ESPN scoreboard returned no fixtures');
+  return all;
 }
+
+// ─── ESPN Match Detail ────────────────────────────────────────────────────────
 
 export async function fetchESPNMatchDetail(espnId: string): Promise<{
   goals: ApiGoal[];
@@ -163,7 +150,6 @@ export async function fetchESPNMatchDetail(espnId: string): Promise<{
   for (const evt of data.keyEvents ?? []) {
     const typeStr: string = evt.type?.type ?? '';
     const clockDisplay: string = evt.clock?.displayValue ?? '';
-    // Parse "90'+4'" → minute=90, injuryTime=4; or "17'" → minute=17, injuryTime=null
     const injuryMatch = clockDisplay.match(/(\d+)['']?\+(\d+)/);
     const minute = injuryMatch ? parseInt(injuryMatch[1], 10) : (parseInt(clockDisplay, 10) || 0);
     const injuryTime = injuryMatch ? parseInt(injuryMatch[2], 10) : null;
@@ -220,7 +206,6 @@ export async function fetchESPNMatchDetail(espnId: string): Promise<{
     };
   }
 
-  // Prefer boxscore.teams (has all 28 stats including yellow/red cards, saves, offsides, passes)
   type BsTeam = { homeAway: string; team: { displayName: string }; statistics?: EspnStatArr };
   const bsTeams: BsTeam[] = data.boxscore?.teams ?? [];
   const homeBS = bsTeams.find((t) => t.homeAway === 'home');
@@ -233,11 +218,9 @@ export async function fetchESPNMatchDetail(espnId: string): Promise<{
       parseStats(awayBS?.statistics, awayBS?.team?.displayName ?? awayTeamName),
     ];
   } else if (homeComp?.statistics?.length || awayComp?.statistics?.length) {
-    // Fall back to header competitors stats (fewer fields, but better than nothing)
     statistics = [parseStats(homeComp?.statistics, homeTeamName), parseStats(awayComp?.statistics, awayTeamName)];
   }
 
-  // Parse starting lineups from rosters
   type EspnPlayer = { starter: boolean; athlete: { displayName: string; jersey: string; position?: { displayName: string } } };
   type EspnRoster = { homeAway: string; formation?: string; roster?: EspnPlayer[] };
   const rosters: EspnRoster[] = data.rosters ?? [];
@@ -259,7 +242,6 @@ export async function fetchESPNMatchDetail(espnId: string): Promise<{
   const lineups: [ApiLineup, ApiLineup] | null =
     homeLineup && awayLineup ? [homeLineup, awayLineup] : null;
 
-  // Parse venue and attendance
   const gameInfo = data.gameInfo ?? {};
   const venueParts = [gameInfo.venue?.fullName, gameInfo.venue?.address?.city].filter(Boolean);
   const venue = venueParts.length > 0 ? venueParts.join(', ') : null;
@@ -268,57 +250,42 @@ export async function fetchESPNMatchDetail(espnId: string): Promise<{
   return { goals, bookings, statistics, lineups, venue, attendance };
 }
 
-export interface ApiStandingEntry {
-  rank: number;
-  group: string;
-  team: { id: number; name: string; logo: string };
-  points: number;
-  goalsDiff: number;
-  all: {
-    played: number; win: number; draw: number; lose: number;
-    goals: { for: number; against: number };
-  };
-  form: string;
-}
+// ─── ESPN Group Standings ─────────────────────────────────────────────────────
 
 export async function fetchGroupStandings(groupName: string): Promise<ApiStandingEntry[] | null> {
-  const res = await fetch(`${BASE}/standings?league=1&season=2026`, {
-    headers: headers(),
-    next: { revalidate: 3600 },
-  });
+  const res = await fetch(
+    'https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings',
+    { next: { revalidate: 3600 } },
+  );
   if (!res.ok) return null;
   const data = await res.json();
-  const allGroups: ApiStandingEntry[][] = data.response?.[0]?.league?.standings ?? [];
-  return allGroups.find(g => g[0]?.group === groupName) ?? null;
-}
 
+  type EspnGroup = { name: string; standings: { entries: EspnEntry[] } };
+  type EspnEntry = { team: { id: string; displayName: string; logos: { href: string }[] }; stats: { name: string; value: number }[] };
 
-export async function fetchWCMatches(): Promise<ApiMatch[]> {
-  const res = await fetch(`${BASE}/fixtures?league=1&season=2026`, {
-    headers: headers(),
-    next: { revalidate: 0 },
+  const group: EspnGroup | undefined = (data.children ?? []).find((g: EspnGroup) => g.name === groupName);
+  if (!group) return null;
+
+  return (group.standings?.entries ?? []).map((entry) => {
+    const stat = (name: string) => Math.round(entry.stats?.find((s) => s.name === name)?.value ?? 0);
+    return {
+      rank: stat('rank'),
+      group: groupName,
+      team: {
+        id: parseInt(entry.team.id, 10),
+        name: entry.team.displayName,
+        logo: entry.team.logos?.[0]?.href ?? '',
+      },
+      points: stat('points'),
+      goalsDiff: Math.round(entry.stats?.find((s) => s.name === 'pointDifferential')?.value ?? 0),
+      all: {
+        played: stat('gamesPlayed'),
+        win: stat('wins'),
+        draw: stat('ties'),
+        lose: stat('losses'),
+        goals: { for: stat('pointsFor'), against: stat('pointsAgainst') },
+      },
+      form: '',
+    };
   });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`API-Football error: ${res.status} ${body.slice(0, 200)}`);
-  }
-
-  const data = await res.json();
-  // API-Football returns errors as 200 with an errors object; surface them clearly
-  if (data.errors && Object.keys(data.errors).length > 0) {
-    throw new Error(`API-Football key error: ${JSON.stringify(data.errors)}`);
-  }
-  return (data.response as AfFixture[]).map(f => ({
-    id: f.fixture.id,
-    homeTeam: { name: f.teams.home.name, crest: f.teams.home.logo },
-    awayTeam: { name: f.teams.away.name, crest: f.teams.away.logo },
-    utcDate: f.fixture.date,
-    status: normalizeStatus(f.fixture.status.short),
-    stage: f.league.round ?? '',
-    group: null,
-    score: { fullTime: { home: f.goals.home ?? null, away: f.goals.away ?? null } },
-    goals: [],
-    bookings: [],
-  }));
 }
