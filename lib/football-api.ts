@@ -110,6 +110,30 @@ export async function fetchMatchDetail(apiId: string): Promise<{ goals: ApiGoal[
   return { goals, bookings };
 }
 
+export interface ApiStandingEntry {
+  rank: number;
+  group: string;
+  team: { id: number; name: string; logo: string };
+  points: number;
+  goalsDiff: number;
+  all: {
+    played: number; win: number; draw: number; lose: number;
+    goals: { for: number; against: number };
+  };
+  form: string;
+}
+
+export async function fetchGroupStandings(groupName: string): Promise<ApiStandingEntry[] | null> {
+  const res = await fetch(`${BASE}/standings?league=1&season=2026`, {
+    headers: headers(),
+    next: { revalidate: 3600 },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const allGroups: ApiStandingEntry[][] = data.response?.[0]?.league?.standings ?? [];
+  return allGroups.find(g => g[0]?.group === groupName) ?? null;
+}
+
 export async function fetchMatchStatistics(apiId: string): Promise<[ApiTeamStats, ApiTeamStats] | null> {
   const res = await fetch(`${BASE}/fixtures/statistics?fixture=${apiId}`, {
     headers: headers(),

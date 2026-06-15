@@ -8,6 +8,7 @@ interface DetailResult {
   apiId: string;
   status: 'ok' | 'error';
   goalsFound: number;
+  valid?: boolean;
   error?: string;
 }
 
@@ -37,10 +38,12 @@ export default function SyncButton() {
         const results = data.detailResults as DetailResult[];
         const ok = results.filter(r => r.status === 'ok');
         const errors = results.filter(r => r.status === 'error');
-        const withGoals = ok.filter(r => r.goalsFound > 0);
-        if (withGoals.length > 0) parts.push(`${withGoals.length} event lookups got goals`);
+        const withGoals = ok.filter(r => r.goalsFound > 0 && r.valid !== false);
+        const invalid = ok.filter(r => r.valid === false);
+        if (withGoals.length > 0) parts.push(`${withGoals.length} event lookup(s) got goals`);
+        if (invalid.length > 0) parts.push(`${invalid.length} match(es): API returned wrong fixture data`);
         if (errors.length > 0) parts.push(`${errors.length} event lookup error(s): ${errors[0].error}`);
-        if (ok.length > 0 && withGoals.length === 0) parts.push(`${ok.length} event lookups: API returned no goals`);
+        if (ok.length > 0 && withGoals.length === 0 && invalid.length === 0) parts.push(`${ok.length} event lookups: API returned no goals`);
       }
       if (parts.length > 0) setDetail(parts.join(' · '));
 

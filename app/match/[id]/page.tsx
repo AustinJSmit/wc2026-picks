@@ -10,7 +10,17 @@ import { Badge } from '@/components/ui/badge';
 import PredictionForm from './prediction-form';
 import MatchEvents from '@/components/match-events';
 import { getFifaRank } from '@/lib/fifa-rankings';
-import type { ApiGoal, ApiBooking, ApiTeamStats } from '@/lib/football-api';
+import { fetchGroupStandings } from '@/lib/football-api';
+import type { ApiGoal, ApiBooking, ApiTeamStats, ApiStandingEntry } from '@/lib/football-api';
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function formatShortDate(date: Date, tz?: string | null) {
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+    ...(tz ? { timeZone: tz } : {}),
+  }).format(date);
+}
 
 function formatKickoff(date: Date, tz?: string | null) {
   return new Intl.DateTimeFormat('en-US', {
@@ -20,51 +30,131 @@ function formatKickoff(date: Date, tz?: string | null) {
   }).format(date);
 }
 
-function MatchStats({ homeTeam, awayTeam, goals, bookings }: {
+function ordinal(n: number) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+}
+
+function scorerLine(goal: ApiGoal) {
+  return `${goal.scorer.name} ${goal.minute}'${goal.injuryTime ? `+${goal.injuryTime}` : ''}${goal.type === 'OWN_GOAL' ? ' (OG)' : goal.type === 'PENALTY' ? ' (P)' : ''}`;
+}
+
+// ─── Components ─────────────────────────────────────────────────────────────
+
+function StatsCard({ homeTeam, awayTeam, homeCrest, awayCrest, goals, bookings, statistics }: {
   homeTeam: string; awayTeam: string;
-  goals: ApiGoal[] | null; bookings: ApiBooking[] | null;
+  homeCrest: string | null; awayCrest: string | null;
+  goals: ApiGoal[]; bookings: ApiBooking[] | null;
+  statistics: [ApiTeamStats, ApiTeamStats] | null;
 }) {
-  if (!goals && !bookings) return null;
-
-  const g = goals ?? [];
-  const b = bookings ?? [];
   const norm = (s: string) => s.trim().toLowerCase();
-
-  const homeGoals = g.filter(x => norm(x.team.name) === norm(homeTeam));
-  const awayGoals = g.filter(x => norm(x.team.name) === norm(awayTeam));
+  const homeGoals = goals.filter(x => norm(x.team.name) === norm(homeTeam));
+  const awayGoals = goals.filter(x => norm(x.team.name) === norm(awayTeam));
+  const b = bookings ?? [];
   const homeBookings = b.filter(x => norm(x.team.name) === norm(homeTeam));
   const awayBookings = b.filter(x => norm(x.team.name) === norm(awayTeam));
   const goalsMatched = homeGoals.length + awayGoals.length > 0;
 
-  const scorerLine = (goal: ApiGoal) =>
-    `${goal.scorer.name} ${goal.minute}'${goal.injuryTime ? `+${goal.injuryTime}` : ''}${goal.type === 'OWN_GOAL' ? ' (OG)' : goal.type === 'PENALTY' ? ' (P)' : ''}`;
+  const home = statistics?.find(s => norm(s.team.name) === norm(homeTeam)) ?? statistics?.[0];
+  const away = statistics?.find(s => norm(s.team.name) !== norm(homeTeam)) ?? statistics?.[1];
+
+  const toNum = (v: string | number | null | undefined) =>
+    v == null ? null : parseFloat(String(v));
+
+  const statRows = (home && away) ? [
+    { label: 'Shots', h: home.totalShots, a: away.totalShots },
+    { label: 'Shots on Target', h: home.shotsOnGoal, a: away.shotsOnGoal },
+    { label: 'Possession', h: home.possession, a: away.possession },
+    { label: 'Passes', h: home.totalPasses, a: away.totalPasses },
+    { label: 'Pass Accuracy', h: home.passAccuracy, a: away.passAccuracy },
+    { label: 'Fouls', h: home.fouls, a: away.fouls },
+    { label: 'Yellow Cards', h: home.yellowCards, a: away.yellowCards },
+    { label: 'Red Cards', h: home.redCards, a: away.redCards },
+    { label: 'Offsides', h: home.offsides, a: away.offsides },
+    { label: 'Corners', h: home.corners, a: away.corners },
+  ].filter(r => r.h != null || r.a != null) : [];
+
+  const hasGoals = goals.length > 0;
+  const hasBookings = b.length > 0;
+  if (!hasGoals && !hasBookings && statRows.length === 0) return null;
 
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Match Summary</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {g.length > 0 && (
-          goalsMatched ? (
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="space-y-0.5">
-                {homeGoals.map((goal, i) => <p key={i} className="text-xs">⚽ {scorerLine(goal)}</p>)}
-              </div>
-              <div className="space-y-0.5 text-right">
-                {awayGoals.map((goal, i) => <p key={i} className="text-xs">⚽ {scorerLine(goal)}</p>)}
-              </div>
+      <CardContent className="pt-4">
+        {/* Stats header with crests + colored squares */}
+        {statRows.length > 0 && (
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              {homeCrest && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={homeCrest} alt={homeTeam} className="h-5 w-5 object-contain" />
+              )}
+              <div className="h-3 w-3 rounded bg-green-600" />
             </div>
-          ) : (
-            <div className="space-y-0.5">
-              {[...g].sort((a, b) => a.minute - b.minute).map((goal, i) => (
-                <p key={i} className="text-xs">⚽ {scorerLine(goal)} ({goal.team.name})</p>
-              ))}
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Team Stats</span>
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded bg-red-600" />
+              {awayCrest && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={awayCrest} alt={awayTeam} className="h-5 w-5 object-contain" />
+              )}
             </div>
-          )
+          </div>
         )}
-        {b.length > 0 && (
-          <div className="grid grid-cols-2 gap-2 text-sm border-t pt-2">
+
+        {/* Stat rows with color-highlighted winners */}
+        {statRows.map(row => {
+          const hNum = toNum(row.h), aNum = toNum(row.a);
+          const homeHigher = hNum != null && aNum != null && hNum > aNum;
+          const awayHigher = hNum != null && aNum != null && aNum > hNum;
+          return (
+            <div key={row.label} className="grid grid-cols-3 items-center py-1.5 border-b last:border-0 text-sm">
+              <div className="flex justify-start">
+                {homeHigher ? (
+                  <span className="bg-green-600 text-white text-xs font-bold rounded px-1.5 py-0.5 tabular-nums">
+                    {row.h}
+                  </span>
+                ) : (
+                  <span className="tabular-nums">{row.h ?? '—'}</span>
+                )}
+              </div>
+              <span className="text-center text-xs text-muted-foreground">{row.label}</span>
+              <div className="flex justify-end">
+                {awayHigher ? (
+                  <span className="bg-red-600 text-white text-xs font-bold rounded px-1.5 py-0.5 tabular-nums">
+                    {row.a}
+                  </span>
+                ) : (
+                  <span className="tabular-nums">{row.a ?? '—'}</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Goal scorers summary */}
+        {hasGoals && (
+          <div className={`grid grid-cols-2 gap-2 text-sm ${statRows.length > 0 ? 'mt-3 pt-3 border-t' : ''}`}>
+            <div className="space-y-0.5">
+              {goalsMatched
+                ? homeGoals.map((g, i) => <p key={i} className="text-xs">⚽ {scorerLine(g)}</p>)
+                : goals.sort((a, b) => a.minute - b.minute).map((g, i) => (
+                    <p key={i} className="text-xs">⚽ {scorerLine(g)} ({g.team.name})</p>
+                  ))
+              }
+            </div>
+            {goalsMatched && (
+              <div className="space-y-0.5 text-right">
+                {awayGoals.map((g, i) => <p key={i} className="text-xs">⚽ {scorerLine(g)}</p>)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Bookings */}
+        {hasBookings && (
+          <div className="grid grid-cols-2 gap-2 text-sm mt-2 pt-2 border-t">
             <div className="space-y-0.5">
               {homeBookings.map((bk, i) => (
                 <p key={i} className="text-xs">
@@ -86,61 +176,65 @@ function MatchStats({ homeTeam, awayTeam, goals, bookings }: {
   );
 }
 
-function MatchStatisticsCard({ homeTeam, awayTeam, statistics }: {
-  homeTeam: string; awayTeam: string;
-  statistics: [ApiTeamStats, ApiTeamStats] | null;
+function StandingsCard({ groupName, standings, homeTeam, awayTeam }: {
+  groupName: string;
+  standings: ApiStandingEntry[];
+  homeTeam: string;
+  awayTeam: string;
 }) {
-  if (!statistics) return null;
+  if (standings.length === 0) return null;
   const norm = (s: string) => s.trim().toLowerCase();
-  const home = statistics.find(s => norm(s.team.name) === norm(homeTeam)) ?? statistics[0];
-  const away = statistics.find(s => norm(s.team.name) !== norm(homeTeam)) ?? statistics[1];
-
-  const rows = [
-    { label: 'Possession', h: home.possession, a: away.possession },
-    { label: 'Shots', h: home.totalShots, a: away.totalShots },
-    { label: 'Shots on Target', h: home.shotsOnGoal, a: away.shotsOnGoal },
-    { label: 'Saves', h: home.saves, a: away.saves },
-    { label: 'Corners', h: home.corners, a: away.corners },
-    { label: 'Fouls', h: home.fouls, a: away.fouls },
-    { label: 'Offsides', h: home.offsides, a: away.offsides },
-    { label: 'Passes', h: home.totalPasses, a: away.totalPasses },
-    { label: 'Pass Accuracy', h: home.passAccuracy, a: away.passAccuracy },
-  ].filter(r => r.h != null || r.a != null);
-
-  if (rows.length === 0) return null;
 
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Match Statistics</CardTitle>
+      <CardHeader className="pb-1">
+        <CardTitle className="text-base">Standings</CardTitle>
+        <p className="text-xs text-muted-foreground uppercase tracking-widest">{groupName}</p>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-1.5">
-          {rows.map(row => (
-            <div key={row.label} className="grid grid-cols-3 items-center text-sm">
-              <span className="text-right pr-3 font-mono tabular-nums">{row.h ?? '—'}</span>
-              <span className="text-center text-xs text-muted-foreground">{row.label}</span>
-              <span className="pl-3 font-mono tabular-nums">{row.a ?? '—'}</span>
-            </div>
-          ))}
+      <CardContent className="p-0 pb-2">
+        <div
+          className="grid px-4 py-1 text-[10px] text-muted-foreground border-b"
+          style={{ gridTemplateColumns: '16px 1fr 26px 26px 26px 26px 32px 28px' }}
+        >
+          <span />
+          <span>Team</span>
+          <span className="text-center">MP</span>
+          <span className="text-center">W</span>
+          <span className="text-center">D</span>
+          <span className="text-center">L</span>
+          <span className="text-center">GD</span>
+          <span className="text-center font-semibold">Pts</span>
         </div>
+        {standings.map(s => {
+          const isMatch = norm(s.team.name) === norm(homeTeam) || norm(s.team.name) === norm(awayTeam);
+          const gd = s.goalsDiff;
+          return (
+            <div
+              key={s.rank}
+              className={`grid items-center px-4 py-1.5 text-xs border-b last:border-0 ${isMatch ? 'bg-muted/50 font-medium' : ''}`}
+              style={{ gridTemplateColumns: '16px 1fr 26px 26px 26px 26px 32px 28px' }}
+            >
+              <span className="text-muted-foreground text-[10px]">{s.rank}</span>
+              <div className="flex items-center gap-1.5 min-w-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={s.team.logo} alt={s.team.name} className="h-4 w-4 object-contain shrink-0" />
+                <span className="truncate">{s.team.name}</span>
+              </div>
+              <span className="text-center">{s.all.played}</span>
+              <span className="text-center">{s.all.win}</span>
+              <span className="text-center">{s.all.draw}</span>
+              <span className="text-center">{s.all.lose}</span>
+              <span className="text-center text-[10px]">{gd > 0 ? `+${gd}` : gd}</span>
+              <span className="text-center font-bold">{s.points}</span>
+            </div>
+          );
+        })}
       </CardContent>
     </Card>
   );
 }
 
-function TeamHeader({ name, crest, rank }: { name: string; crest: string | null; rank: number | null }) {
-  return (
-    <span className="inline-flex flex-col items-center gap-1">
-      {crest && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={crest} alt={name} className="h-10 w-10 object-contain" />
-      )}
-      <span className="font-bold">{name}</span>
-      {rank && <span className="text-xs text-muted-foreground font-normal">FIFA #{rank}</span>}
-    </span>
-  );
-}
+// ─── Page ────────────────────────────────────────────────────────────────────
 
 export default async function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -158,44 +252,104 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   const isLocked = new Date() >= match.kickoffAt;
   const isFinished = match.status === 'FINISHED';
 
-  const stageLabel = match.stage
-    ? match.stage.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  // Extract group name from stage (e.g. "Group A" from "Group Stage - Group A" or "Group A")
+  const groupMatch = match.stage?.match(/Group [A-Z]/i);
+  const groupName = groupMatch?.[0] ?? null;
+
+  // Fetch group standings (1-hour cached fetch, separate from force-dynamic page cache)
+  const standings = groupName
+    ? await fetchGroupStandings(groupName).catch(() => null)
     : null;
 
-  return (
-    <div className="max-w-lg mx-auto space-y-6">
-      <div className="text-center space-y-2">
-        {stageLabel && (
-          <Badge variant="outline" className="text-xs">{stageLabel}</Badge>
-        )}
-        <p className="text-sm text-muted-foreground">{formatKickoff(new Date(match.kickoffAt), user.timezone)}</p>
+  const norm = (s: string) => s.trim().toLowerCase();
+  const homePos = standings?.find(s => norm(s.team.name) === norm(match.homeTeam))?.rank ?? null;
+  const awayPos = standings?.find(s => norm(s.team.name) === norm(match.awayTeam))?.rank ?? null;
 
-        <div className="flex items-center justify-center gap-4 py-2">
-          <TeamHeader
-            name={match.homeTeam}
-            crest={match.homeTeamCrest ?? null}
-            rank={getFifaRank(match.homeTeam)}
-          />
-          <div className="text-center">
-            {isFinished && match.homeScore != null ? (
-              <div className="text-3xl font-bold tabular-nums">
-                {match.homeScore} – {match.awayScore}
+  // Determine event data state
+  const goalsData = match.goals as ApiGoal[] | null;
+  const expectedGoals = (match.homeScore ?? 0) + (match.awayScore ?? 0);
+  const neverSynced = goalsData === null;
+  const dataInvalid = Array.isArray(goalsData) && goalsData.length === 0 && expectedGoals > 0;
+  const hasEvents = Array.isArray(goalsData) && goalsData.length > 0;
+
+  // Pre-derive goal scorer lists (used in header + StatsCard)
+  const homeGoals = hasEvents ? goalsData.filter(x => norm(x.team.name) === norm(match.homeTeam)) : [];
+  const awayGoals = hasEvents ? goalsData.filter(x => norm(x.team.name) === norm(match.awayTeam)) : [];
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+
+      {/* ── Dark match header ────────────────────────────────────── */}
+      <div className="rounded-xl overflow-hidden bg-zinc-900 text-white">
+        {/* Top bar: competition + date + status */}
+        <div className="flex items-center justify-between px-4 pt-3 pb-1 text-xs text-zinc-400">
+          <span>
+            FIFA World Cup 2026™{groupName ? ` · ${groupName}` : ''} · {formatShortDate(new Date(match.kickoffAt), user.timezone)}
+          </span>
+          <span className={
+            isFinished ? 'text-zinc-300' :
+            match.status === 'LIVE' ? 'text-red-400 font-semibold' :
+            'text-zinc-400'
+          }>
+            {isFinished ? 'Full-time' : match.status === 'LIVE' ? '🔴 Live' : formatKickoff(new Date(match.kickoffAt), user.timezone)}
+          </span>
+        </div>
+
+        {/* Score row */}
+        <div className="flex items-center justify-between px-6 py-5">
+          {/* Home team */}
+          <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
+            {match.homeTeamCrest && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={match.homeTeamCrest} alt={match.homeTeam} className="h-14 w-14 object-contain" />
+            )}
+            <span className="font-semibold text-sm text-center leading-tight max-w-[90px]">{match.homeTeam}</span>
+            {homePos && <span className="text-[10px] text-zinc-500">{ordinal(homePos)}</span>}
+            <span className="text-[10px] text-zinc-600">FIFA #{getFifaRank(match.homeTeam) ?? '—'}</span>
+          </div>
+
+          {/* Score */}
+          <div className="text-center px-4 shrink-0">
+            {(isFinished || match.status === 'LIVE') && match.homeScore != null ? (
+              <div className="text-5xl font-bold tabular-nums tracking-tight">
+                {match.homeScore} <span className="text-zinc-600">–</span> {match.awayScore}
               </div>
             ) : (
-              <span className="text-muted-foreground font-normal text-lg">vs</span>
-            )}
-            {match.status === 'LIVE' && (
-              <div className="mt-1"><Badge className="bg-red-500 text-white text-xs">🔴 LIVE</Badge></div>
+              <>
+                <div className="text-2xl font-light text-zinc-500">vs</div>
+                <div className="text-[10px] text-zinc-500 mt-1">
+                  {formatKickoff(new Date(match.kickoffAt), user.timezone)}
+                </div>
+              </>
             )}
           </div>
-          <TeamHeader
-            name={match.awayTeam}
-            crest={match.awayTeamCrest ?? null}
-            rank={getFifaRank(match.awayTeam)}
-          />
+
+          {/* Away team */}
+          <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
+            {match.awayTeamCrest && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={match.awayTeamCrest} alt={match.awayTeam} className="h-14 w-14 object-contain" />
+            )}
+            <span className="font-semibold text-sm text-center leading-tight max-w-[90px]">{match.awayTeam}</span>
+            {awayPos && <span className="text-[10px] text-zinc-500">{ordinal(awayPos)}</span>}
+            <span className="text-[10px] text-zinc-600">FIFA #{getFifaRank(match.awayTeam) ?? '—'}</span>
+          </div>
         </div>
+
+        {/* Inline goal scorers */}
+        {isFinished && hasEvents && (homeGoals.length > 0 || awayGoals.length > 0) && (
+          <div className="flex justify-between px-6 pb-4 text-xs text-zinc-400 border-t border-zinc-800 pt-3">
+            <div className="space-y-0.5 flex-1">
+              {homeGoals.map((g, i) => <div key={i}>⚽ {scorerLine(g)}</div>)}
+            </div>
+            <div className="space-y-0.5 flex-1 text-right">
+              {awayGoals.map((g, i) => <div key={i}>{scorerLine(g)} ⚽</div>)}
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* ── Prediction card ──────────────────────────────────────── */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
@@ -237,40 +391,59 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         </CardContent>
       </Card>
 
-      {isFinished && match.goals != null && (
-        <MatchStats
+      {/* ── Events / stats / messages (finished matches only) ────── */}
+      {isFinished && (() => {
+        if (neverSynced) {
+          return (
+            <Card>
+              <CardContent className="py-4 text-center text-sm text-muted-foreground">
+                Match events not available yet — hit <strong>Sync</strong> on the matches page to load them.
+              </CardContent>
+            </Card>
+          );
+        }
+        if (dataInvalid) {
+          return (
+            <Card>
+              <CardContent className="py-4 text-center text-sm text-muted-foreground">
+                Match events temporarily unavailable — API data issue for this fixture.
+              </CardContent>
+            </Card>
+          );
+        }
+        if (!hasEvents) return null; // 0-0, no events expected
+
+        return (
+          <>
+            <StatsCard
+              homeTeam={match.homeTeam}
+              awayTeam={match.awayTeam}
+              homeCrest={match.homeTeamCrest ?? null}
+              awayCrest={match.awayTeamCrest ?? null}
+              goals={goalsData}
+              bookings={match.bookings as ApiBooking[] | null}
+              statistics={match.statistics as [ApiTeamStats, ApiTeamStats] | null}
+            />
+            <MatchEvents
+              homeTeam={match.homeTeam}
+              awayTeam={match.awayTeam}
+              homeCrest={match.homeTeamCrest ?? null}
+              awayCrest={match.awayTeamCrest ?? null}
+              goals={goalsData}
+              bookings={match.bookings as ApiBooking[] | null}
+            />
+          </>
+        );
+      })()}
+
+      {/* ── Group standings ──────────────────────────────────────── */}
+      {standings && groupName && (
+        <StandingsCard
+          groupName={groupName}
+          standings={standings}
           homeTeam={match.homeTeam}
           awayTeam={match.awayTeam}
-          goals={match.goals as ApiGoal[] | null}
-          bookings={match.bookings as ApiBooking[] | null}
         />
-      )}
-
-      {isFinished && match.goals != null && (
-        <MatchEvents
-          homeTeam={match.homeTeam}
-          awayTeam={match.awayTeam}
-          homeCrest={match.homeTeamCrest ?? null}
-          awayCrest={match.awayTeamCrest ?? null}
-          goals={match.goals as ApiGoal[] | null}
-          bookings={match.bookings as ApiBooking[] | null}
-        />
-      )}
-
-      {isFinished && match.statistics != null && (
-        <MatchStatisticsCard
-          homeTeam={match.homeTeam}
-          awayTeam={match.awayTeam}
-          statistics={match.statistics as [ApiTeamStats, ApiTeamStats]}
-        />
-      )}
-
-      {isFinished && match.goals == null && (
-        <Card>
-          <CardContent className="py-4 text-center text-sm text-muted-foreground">
-            Match events not available yet — hit <strong>Sync</strong> on the matches page to load them.
-          </CardContent>
-        </Card>
       )}
     </div>
   );

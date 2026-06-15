@@ -76,13 +76,13 @@ export async function POST() {
     return NextResponse.json({ error: `Scoring failed: ${msg}`, matchesSynced: synced, failed }, { status: 500 });
   }
 
-  // Back-fill goals/bookings for recently finished matches that are still missing them
+  // Back-fill goals/bookings/statistics for recently finished matches that are still missing them
   let detailsFilled = 0;
-  const detailResults: { apiId: string; status: 'ok' | 'error'; goalsFound: number; error?: string }[] = [];
+  const detailResults: { apiId: string; status: 'ok' | 'error'; goalsFound: number; valid?: boolean; error?: string }[] = [];
 
   try {
     const needsDetail = await db
-      .select({ id: matches.id, apiId: matches.apiId })
+      .select({ id: matches.id, apiId: matches.apiId, homeScore: matches.homeScore, awayScore: matches.awayScore })
       .from(matches)
       .where(and(
         eq(matches.status, 'FINISHED'),
@@ -98,15 +98,23 @@ export async function POST() {
           fetchMatchDetail(match.apiId),
           fetchMatchStatistics(match.apiId),
         ]);
+
+        // Validate: goal count must match the stored final score.
+        // If not, the events API returned data from a different fixture (API cross-contamination).
+        // Store [] as a sentinel to prevent infinite re-fetch on subsequent syncs.
+        const totalExpected = (match.homeScore ?? 0) + (match.awayScore ?? 0);
+        const validData = detail.goals.length === totalExpected;
+
         await db.update(matches)
           .set({
-            goals: detail.goals.length > 0 ? detail.goals : null,
-            bookings: detail.bookings.length > 0 ? detail.bookings : null,
-            statistics: stats ?? null,
+            goals: validData ? (detail.goals.length > 0 ? detail.goals : []) : [],
+            bookings: validData && detail.bookings.length > 0 ? detail.bookings : null,
+            statistics: validData ? (stats ?? null) : null,
           })
           .where(eq(matches.id, match.id));
-        detailResults.push({ apiId: match.apiId, status: 'ok', goalsFound: detail.goals.length });
-        if (detail.goals.length > 0) detailsFilled++;
+
+        detailResults.push({ apiId: match.apiId, status: 'ok', goalsFound: detail.goals.length, valid: validData });
+        if (validData && detail.goals.length > 0) detailsFilled++;
       } catch (err) {
         detailResults.push({ apiId: match.apiId, status: 'error', goalsFound: 0, error: String(err) });
       }
