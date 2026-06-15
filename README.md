@@ -87,6 +87,7 @@ All admin endpoints require you to be logged in with your `ADMIN_EMAIL` account.
 |---|---|---|
 | `/api/export` | GET | Download CSV of all players, demographics, and total points |
 | `/api/admin/reset` | POST | Delete all matches and predictions — use before switching data sources or resetting for a new tournament |
+| `/api/admin/clear-events` | POST | Clear goals/bookings/statistics for all finished matches without touching predictions or match records — use to force a clean re-sync of event data |
 | `/api/matches/sync` | POST | Sync match schedule and results from API-Sports; backfills goal/booking data for up to 3 recently finished matches per call |
 
 ---
