@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { matches, predictions } from '@/db/schema';
-import { eq, isNull, desc, and, or } from 'drizzle-orm';
+import { eq, isNull, desc, and, or, lte } from 'drizzle-orm';
 import { fetchESPNFixtures, fetchESPNMatchDetail } from '@/lib/football-api';
 import type { ApiMatch } from '@/lib/football-api';
 import { calculatePoints } from '@/lib/scoring';
@@ -179,6 +179,32 @@ export async function POST() {
   } catch {
     // non-fatal; main sync already succeeded
   }
+
+  // Upcoming matches: re-fetch lineups every sync so announced/changed lineups stay current
+  try {
+    const upcoming = await db
+      .select({ id: matches.id, apiId: matches.apiId })
+      .from(matches)
+      .where(
+        and(
+          eq(matches.status, 'SCHEDULED'),
+          lte(matches.kickoffAt, new Date(Date.now() + 48 * 60 * 60 * 1000))
+        )
+      )
+      .orderBy(matches.kickoffAt)
+      .limit(5);
+
+    for (const match of upcoming) {
+      try {
+        const detail = await fetchESPNMatchDetail(match.apiId!);
+        if (detail.lineups) {
+          await db.update(matches)
+            .set({ lineups: detail.lineups })
+            .where(eq(matches.id, match.id));
+        }
+      } catch { /* non-fatal */ }
+    }
+  } catch { /* non-fatal */ }
 
   return NextResponse.json({
     ok: true,

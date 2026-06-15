@@ -429,6 +429,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   const isLocked = new Date() >= match.kickoffAt;
   const isFinished = match.status === 'FINISHED';
   const isLive = match.status === 'LIVE';
+  const isScheduled = match.status === 'SCHEDULED';
 
   // Extract group name from stage
   const groupMatch = match.stage?.match(/Group [A-Z]/i);
@@ -645,7 +646,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
       )}
 
       {/* ── Line-ups ─────────────────────────────────────────────── */}
-      {(isFinished || isLive) && (() => {
+      {(isFinished || isLive || isScheduled) && (() => {
         const lineupsData = match.lineups as [ApiLineup, ApiLineup] | null;
         if (!lineupsData) return null;
         return (
