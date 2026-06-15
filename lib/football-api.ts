@@ -2,7 +2,7 @@ const BASE = 'https://v3.football.api-sports.io';
 
 function headers() {
   return {
-    'x-apisports-key': process.env.API_FOOTBALL_KEY ?? '',
+    'x-apisports-key': process.env.API_FOOTBALL_KEY ?? process.env.FOOTBALL_API_KEY ?? '',
   };
 }
 
@@ -305,6 +305,10 @@ export async function fetchWCMatches(): Promise<ApiMatch[]> {
   }
 
   const data = await res.json();
+  // API-Football returns errors as 200 with an errors object; surface them clearly
+  if (data.errors && Object.keys(data.errors).length > 0) {
+    throw new Error(`API-Football key error: ${JSON.stringify(data.errors)}`);
+  }
   return (data.response as AfFixture[]).map(f => ({
     id: f.fixture.id,
     homeTeam: { name: f.teams.home.name, crest: f.teams.home.logo },
