@@ -109,10 +109,10 @@ export async function POST() {
         or(
           // LIVE matches: always re-fetch so in-progress goals/cards stay current
           eq(matches.status, 'LIVE'),
-          // FINISHED matches: only fetch if event data is still missing
+          // FINISHED matches: fetch if goals, lineups, or statistics are still missing
           and(
             eq(matches.status, 'FINISHED'),
-            or(isNull(matches.goals), isNull(matches.lineups))
+            or(isNull(matches.goals), isNull(matches.lineups), isNull(matches.statistics))
           )
         )
       )

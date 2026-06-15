@@ -583,6 +583,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
 
       {/* ── Events / stats (finished + live matches) ─────────────── */}
       {(isFinished || isLive) && (() => {
+        // goals IS NULL means the ESPN summary endpoint hasn't been called yet
         if (neverSynced) {
           return (
             <Card>
@@ -592,17 +593,8 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
             </Card>
           );
         }
-        if (dataInvalid) {
-          return (
-            <Card>
-              <CardContent className="py-4 text-center text-sm text-muted-foreground">
-                {isLive ? 'Syncing latest events…' : 'Match events temporarily unavailable.'}
-              </CardContent>
-            </Card>
-          );
-        }
-        if (!hasEvents) return null;
-
+        // Stats and events render independently — each component returns null if its data is missing.
+        // This ensures 0-0 matches still show possession/shots/etc. even with no goal timeline.
         return (
           <>
             <StatsCard
@@ -617,7 +609,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               awayTeam={match.awayTeam}
               homeCrest={match.homeTeamCrest ?? null}
               awayCrest={match.awayTeamCrest ?? null}
-              goals={goalsData}
+              goals={dataInvalid ? null : goalsData}
               bookings={match.bookings as ApiBooking[] | null}
             />
           </>
