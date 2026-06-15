@@ -72,7 +72,7 @@ npm run dev            # start at localhost:3000
 - **Timezone settings** — each user picks their timezone; kickoff times display locally across the app. Auto-detected from browser on signup
 - **Leaderboard** — live standings across all players, visible to anyone
 - **Match schedule** — upcoming (predict) and past (results + your points)
-- **Match events + statistics** — finished matches show goal scorers, assists, bookings (yellow/red cards with player + minute), and match statistics (possession, shots, passes, etc.)
+- **Match events + statistics** — finished matches show goal scorers, assists, bookings (yellow/red cards with player + minute), and match statistics (possession, shots, fouls, corners)
 - **Predictions lock at kickoff** — enforced server-side, not just in the UI
 - **Auto-scoring** — hit Sync after matches finish; points award automatically
 - **Data export** — admin CSV download at `/api/export` with all players, demographics, and scores
@@ -94,9 +94,9 @@ All admin endpoints require you to be logged in with your `ADMIN_EMAIL` account.
 
 ## Sync strategy
 
-The free API tier allows 100 requests/day. Each sync uses:
-- 1 request for the full match list (scores + status)
-- Up to 4 pairs of per-match calls (events + statistics) for recently finished matches missing data — 9 requests max per sync (stays under the 10 req/min free tier limit)
+Each sync uses:
+- 1 API-Sports request for the full match list (scores + status)
+- For recently finished matches missing events: up to 4 ESPN lookups (scoreboard by date → match summary). ESPN has no rate limits and requires no API key.
 
 Hit Sync once after each match finishes to keep data fresh. The sync button shows a diagnostic line confirming whether event data was found.
 
@@ -107,6 +107,6 @@ Hit Sync once after each match finishes to keep data fresh. The sync button show
 - **Framework** — Next.js 16 (App Router, Turbopack)
 - **Database** — Neon Postgres via `@neondatabase/serverless` + Drizzle ORM
 - **Auth** — bcryptjs + iron-session (cookie-based, 30-day sessions)
-- **Football data** — API-Sports (`v3.football.api-sports.io`)
+- **Football data** — API-Sports (fixtures + standings) + ESPN unofficial API (match events + statistics)
 - **UI** — Tailwind CSS + shadcn/ui (@base-ui/react)
 - **Hosting** — Vercel (free) + Neon (free, no pausing)

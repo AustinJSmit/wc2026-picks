@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { matches, predictions } from '@/db/schema';
-import { eq, isNull, desc, and, or } from 'drizzle-orm';
-import { fetchWCMatches, fetchMatchDetail, fetchMatchStatistics } from '@/lib/football-api';
+import { eq, isNull, desc, and } from 'drizzle-orm';
+import { fetchWCMatches, findESPNEventId, fetchESPNMatchDetail } from '@/lib/football-api';
 import type { ApiMatch } from '@/lib/football-api';
 import { calculatePoints } from '@/lib/scoring';
 
@@ -82,26 +82,40 @@ export async function POST() {
 
   try {
     const needsDetail = await db
-      .select({ id: matches.id, apiId: matches.apiId, homeScore: matches.homeScore, awayScore: matches.awayScore })
+      .select({
+        id: matches.id,
+        apiId: matches.apiId,
+        espnId: matches.espnId,
+        homeTeam: matches.homeTeam,
+        awayTeam: matches.awayTeam,
+        kickoffAt: matches.kickoffAt,
+        homeScore: matches.homeScore,
+        awayScore: matches.awayScore,
+      })
       .from(matches)
-      .where(and(
-        eq(matches.status, 'FINISHED'),
-        or(isNull(matches.goals), isNull(matches.statistics)),
-      ))
+      .where(and(eq(matches.status, 'FINISHED'), isNull(matches.goals)))
       .orderBy(desc(matches.kickoffAt))
       .limit(4);
 
     for (const match of needsDetail) {
-      if (!match.apiId) continue;
       try {
-        const [detail, stats] = await Promise.all([
-          fetchMatchDetail(match.apiId),
-          fetchMatchStatistics(match.apiId),
-        ]);
+        // Get ESPN event ID — use cached value or look up by date + team names
+        let espnId = match.espnId;
+        if (!espnId) {
+          espnId = await findESPNEventId(match.kickoffAt!, match.homeTeam, match.awayTeam);
+          if (espnId) {
+            await db.update(matches).set({ espnId }).where(eq(matches.id, match.id));
+          }
+        }
 
-        // Validate: goal count must match the stored final score.
-        // If not, the events API returned data from a different fixture (API cross-contamination).
-        // Store [] as a sentinel to prevent infinite re-fetch on subsequent syncs.
+        if (!espnId) {
+          detailResults.push({ apiId: match.apiId ?? '', status: 'error', goalsFound: 0, error: 'ESPN event not found' });
+          continue;
+        }
+
+        const detail = await fetchESPNMatchDetail(espnId);
+
+        // Sanity check: ESPN goal count should match the stored final score
         const totalExpected = (match.homeScore ?? 0) + (match.awayScore ?? 0);
         const validData = detail.goals.length === totalExpected;
 
@@ -109,14 +123,14 @@ export async function POST() {
           .set({
             goals: validData ? (detail.goals.length > 0 ? detail.goals : []) : [],
             bookings: validData && detail.bookings.length > 0 ? detail.bookings : null,
-            statistics: validData ? (stats ?? null) : null,
+            statistics: validData ? (detail.statistics ?? null) : null,
           })
           .where(eq(matches.id, match.id));
 
-        detailResults.push({ apiId: match.apiId, status: 'ok', goalsFound: detail.goals.length, valid: validData });
+        detailResults.push({ apiId: match.apiId ?? '', status: 'ok', goalsFound: detail.goals.length, valid: validData });
         if (validData && detail.goals.length > 0) detailsFilled++;
       } catch (err) {
-        detailResults.push({ apiId: match.apiId, status: 'error', goalsFound: 0, error: String(err) });
+        detailResults.push({ apiId: match.apiId ?? '', status: 'error', goalsFound: 0, error: String(err) });
       }
     }
   } catch {

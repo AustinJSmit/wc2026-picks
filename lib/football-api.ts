@@ -58,16 +58,7 @@ export interface ApiMatch {
   bookings: ApiBooking[];
 }
 
-// Raw shapes from API-Football
-interface AfEvent {
-  time: { elapsed: number; extra: number | null };
-  team: { id: number; name: string };
-  player: { id: number | null; name: string };
-  assist: { id: number | null; name: string | null } | null;
-  type: string;
-  detail: string;
-}
-
+// Raw shape from API-Football fixtures endpoint
 interface AfFixture {
   fixture: { id: number; date: string; status: { short: string } };
   league: { round: string | null };
@@ -75,39 +66,123 @@ interface AfFixture {
   goals: { home: number | null; away: number | null };
 }
 
-export async function fetchMatchDetail(apiId: string): Promise<{ goals: ApiGoal[]; bookings: ApiBooking[] }> {
-  const res = await fetch(`${BASE}/fixtures/events?fixture=${apiId}`, {
-    headers: headers(),
-    next: { revalidate: 0 },
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`HTTP ${res.status}: ${body.slice(0, 200)}`);
-  }
+function normalizeName(s: string): string {
+  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+}
+
+export async function findESPNEventId(
+  date: Date,
+  homeTeam: string,
+  awayTeam: string,
+): Promise<string | null> {
+  const yyyymmdd = date.toISOString().slice(0, 10).replace(/-/g, '');
+  const res = await fetch(
+    `https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=${yyyymmdd}&limit=50`,
+    { next: { revalidate: 0 } },
+  );
+  if (!res.ok) return null;
   const data = await res.json();
-  const events: AfEvent[] = data.response ?? [];
+  const normHome = normalizeName(homeTeam);
+  const normAway = normalizeName(awayTeam);
 
-  const goals: ApiGoal[] = events
-    .filter(e => e.type === 'Goal')
-    .map(e => ({
-      minute: e.time.elapsed,
-      injuryTime: e.time.extra ?? null,
-      type: e.detail === 'Own Goal' ? 'OWN_GOAL' : e.detail === 'Penalty' ? 'PENALTY' : 'REGULAR',
-      team: { name: e.team.name },
-      scorer: { name: e.player.name },
-      assist: e.assist?.name ? { name: e.assist.name } : null,
-    }));
+  for (const event of data.events ?? []) {
+    const comps: Array<{ team: { displayName: string }; homeAway: string }> =
+      event.competitions?.[0]?.competitors ?? [];
+    const home = comps.find((c) => c.homeAway === 'home');
+    const away = comps.find((c) => c.homeAway === 'away');
+    if (!home || !away) continue;
+    const normH = normalizeName(home.team.displayName);
+    const normA = normalizeName(away.team.displayName);
+    // Substring match handles "Turkiye"↔"Turkey", "Korea Republic"↔"South Korea", etc.
+    if (
+      (normH.includes(normHome) || normHome.includes(normH)) &&
+      (normA.includes(normAway) || normAway.includes(normA))
+    ) {
+      return String(event.id);
+    }
+  }
+  return null;
+}
 
-  const bookings: ApiBooking[] = events
-    .filter(e => e.type === 'Card')
-    .map(e => ({
-      minute: e.time.elapsed,
-      team: { name: e.team.name },
-      player: { name: e.player.name },
-      card: e.detail === 'Red Card' ? 'RED_CARD' : 'YELLOW_CARD',
-    }));
+export async function fetchESPNMatchDetail(espnId: string): Promise<{
+  goals: ApiGoal[];
+  bookings: ApiBooking[];
+  statistics: [ApiTeamStats, ApiTeamStats] | null;
+}> {
+  const res = await fetch(
+    `https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary?event=${espnId}`,
+    { next: { revalidate: 0 } },
+  );
+  if (!res.ok) return { goals: [], bookings: [], statistics: null };
+  const data = await res.json();
 
-  return { goals, bookings };
+  const comps = data.header?.competitions?.[0] ?? data.competitions?.[0];
+  const homeComp = comps?.competitors?.find((c: { homeAway: string }) => c.homeAway === 'home');
+  const awayComp = comps?.competitors?.find((c: { homeAway: string }) => c.homeAway === 'away');
+  const homeTeamName: string = homeComp?.team?.displayName ?? '';
+  const awayTeamName: string = awayComp?.team?.displayName ?? '';
+
+  const goals: ApiGoal[] = [];
+  const bookings: ApiBooking[] = [];
+
+  for (const evt of data.keyEvents ?? []) {
+    const typeStr: string = evt.type?.type ?? '';
+    const minuteStr: string = evt.clock?.displayValue ?? '';
+    const minute = parseInt(minuteStr, 10) || 0;
+    const teamName: string = evt.team?.displayName ?? '';
+
+    if (typeStr === 'goal') {
+      const scorer: string = evt.participants?.[0]?.athlete?.displayName ?? '';
+      const assistRaw: string | null = evt.participants?.[1]?.athlete?.displayName ?? null;
+      goals.push({
+        minute,
+        injuryTime: null,
+        type: evt.penaltyKick ? 'PENALTY' : evt.ownGoal ? 'OWN_GOAL' : 'REGULAR',
+        team: { name: teamName },
+        scorer: { name: scorer },
+        assist: assistRaw ? { name: assistRaw } : null,
+      });
+    } else if (typeStr === 'yellow-card' || typeStr === 'red-card') {
+      const player: string = evt.athletesInvolved?.[0]?.displayName ?? '';
+      bookings.push({
+        minute,
+        team: { name: teamName },
+        player: { name: player },
+        card: evt.redCard ? 'RED_CARD' : 'YELLOW_CARD',
+      });
+    }
+  }
+
+  // ESPN provides possession, shots, corners, fouls — not passes/offsides/saves
+  type EspnStatArr = Array<{ name: string; displayValue: string }>;
+  function parseStats(comp: { statistics?: EspnStatArr } | undefined, name: string): ApiTeamStats {
+    const stats: EspnStatArr = comp?.statistics ?? [];
+    const findNum = (key: string) => {
+      const v = stats.find((s) => s.name === key)?.displayValue ?? null;
+      return v == null ? null : parseFloat(v) || null;
+    };
+    return {
+      team: { name },
+      possession: stats.find((s) => s.name === 'possessionPct')?.displayValue ?? null,
+      shotsOnGoal: findNum('shotsOnTarget'),
+      totalShots: findNum('totalShots'),
+      corners: findNum('wonCorners'),
+      fouls: findNum('foulsCommitted'),
+      offsides: null,
+      yellowCards: null,
+      redCards: null,
+      saves: null,
+      totalPasses: null,
+      passAccuracy: null,
+    };
+  }
+
+  let statistics: [ApiTeamStats, ApiTeamStats] | null = null;
+  if (homeComp?.statistics?.length || awayComp?.statistics?.length) {
+    statistics = [parseStats(homeComp, homeTeamName), parseStats(awayComp, awayTeamName)];
+  }
+
+  return { goals, bookings, statistics };
 }
 
 export interface ApiStandingEntry {
@@ -134,39 +209,6 @@ export async function fetchGroupStandings(groupName: string): Promise<ApiStandin
   return allGroups.find(g => g[0]?.group === groupName) ?? null;
 }
 
-export async function fetchMatchStatistics(apiId: string): Promise<[ApiTeamStats, ApiTeamStats] | null> {
-  const res = await fetch(`${BASE}/fixtures/statistics?fixture=${apiId}`, {
-    headers: headers(),
-    next: { revalidate: 0 },
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  const teams: Array<{ team: { name: string }; statistics: Array<{ type: string; value: string | number | null }> }> =
-    data.response ?? [];
-  if (teams.length < 2) return null;
-
-  const extract = (raw: Array<{ type: string; value: string | number | null }>) => {
-    const get = (type: string) => raw.find(s => s.type === type)?.value ?? null;
-    return {
-      possession: get('Ball Possession') as string | null,
-      shotsOnGoal: get('Shots on Goal') as number | null,
-      totalShots: get('Total Shots') as number | null,
-      corners: get('Corner Kicks') as number | null,
-      fouls: get('Fouls') as number | null,
-      offsides: get('Offsides') as number | null,
-      yellowCards: get('Yellow Cards') as number | null,
-      redCards: get('Red Cards') as number | null,
-      saves: get('Goalkeeper Saves') as number | null,
-      totalPasses: get('Total passes') as number | null,
-      passAccuracy: get('Passes %') as string | null,
-    };
-  };
-
-  return [
-    { team: teams[0].team, ...extract(teams[0].statistics) },
-    { team: teams[1].team, ...extract(teams[1].statistics) },
-  ];
-}
 
 export async function fetchWCMatches(): Promise<ApiMatch[]> {
   const res = await fetch(`${BASE}/fixtures?league=1&season=2026`, {
