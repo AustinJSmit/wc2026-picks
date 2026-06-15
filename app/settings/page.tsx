@@ -11,7 +11,7 @@ export default async function SettingsPage() {
   return (
     <div className="max-w-lg mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
-      <SettingsForm timezone={user.timezone ?? null} />
+      <SettingsForm timezone={user.timezone ?? null} darkMode={user.darkMode ?? null} />
     </div>
   );
 }

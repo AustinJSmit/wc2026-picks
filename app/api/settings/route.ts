@@ -13,7 +13,8 @@ const schema = z.object({
     } catch {
       return false;
     }
-  }, 'Invalid timezone'),
+  }, 'Invalid timezone').optional(),
+  darkMode: z.enum(['dark', 'light', 'system']).optional(),
 });
 
 export async function PATCH(req: NextRequest) {
@@ -28,10 +29,23 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
   }
 
-  const { timezone } = parsed.data;
-  await db.update(users).set({ timezone }).where(eq(users.id, session.userId));
-  session.timezone = timezone;
-  await session.save();
+  const { timezone, darkMode } = parsed.data;
+  const updates: Record<string, string> = {};
+  if (timezone) updates.timezone = timezone;
+  if (darkMode) updates.darkMode = darkMode;
 
-  return NextResponse.json({ ok: true });
+  if (Object.keys(updates).length > 0) {
+    await db.update(users).set(updates).where(eq(users.id, session.userId));
+  }
+
+  if (timezone) {
+    session.timezone = timezone;
+    await session.save();
+  }
+
+  const res = NextResponse.json({ ok: true });
+  if (darkMode) {
+    res.cookies.set('theme', darkMode, { path: '/', maxAge: 365 * 24 * 3600, sameSite: 'lax' });
+  }
+  return res;
 }

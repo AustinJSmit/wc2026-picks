@@ -28,6 +28,8 @@ const MEDALS = ['🥇', '🥈', '🥉'];
 export default async function HomePage() {
   const [leaderboard, user] = await Promise.all([getLeaderboard(), getCurrentUser()]);
 
+  const top5 = leaderboard.slice(0, 5);
+
   return (
     <div className="space-y-6">
       <div className="text-center py-6 space-y-2">
@@ -46,22 +48,27 @@ export default async function HomePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            🏆 Leaderboard
-            <span className="text-sm font-normal text-muted-foreground ml-auto">
-              {leaderboard.length} player{leaderboard.length !== 1 ? 's' : ''}
-            </span>
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              🏆 Leaderboard
+              <span className="text-sm font-normal text-muted-foreground">
+                {leaderboard.length} player{leaderboard.length !== 1 ? 's' : ''}
+              </span>
+            </CardTitle>
+            <Link href="/leaderboard" className="text-xs text-primary hover:underline">
+              View full →
+            </Link>
+          </div>
         </CardHeader>
         <CardContent>
-          {leaderboard.length === 0 ? (
+          {top5.length === 0 ? (
             <p className="text-muted-foreground text-center py-8 text-sm">
               No players yet.{' '}
               <Link href="/signup" className="text-primary underline underline-offset-4">Be the first to join!</Link>
             </p>
           ) : (
             <div className="divide-y">
-              {leaderboard.map((player, i) => (
+              {top5.map((player, i) => (
                 <div
                   key={player.id}
                   className={`flex items-center gap-3 py-3 ${player.id === user?.id ? 'font-semibold' : ''}`}
@@ -78,6 +85,13 @@ export default async function HomePage() {
                   </span>
                 </div>
               ))}
+              {leaderboard.length > 5 && (
+                <div className="pt-3 text-center">
+                  <Link href="/leaderboard" className="text-sm text-primary hover:underline">
+                    See all {leaderboard.length} players →
+                  </Link>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

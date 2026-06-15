@@ -10,6 +10,7 @@ export const users = pgTable('users', {
   country: text('country'),
   favoriteTeam: text('favorite_team'),
   timezone: text('timezone'),
+  darkMode: text('dark_mode'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

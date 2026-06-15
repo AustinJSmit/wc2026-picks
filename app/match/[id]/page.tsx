@@ -2,16 +2,18 @@ export const dynamic = 'force-dynamic';
 
 import { db } from '@/db';
 import { matches, predictions } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, or } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
 import { redirect, notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import PredictionForm from './prediction-form';
+import FriendsPredictionsCard from './friends-predictions-card';
+import LiveMatchPoller from './live-match-poller';
 import MatchEvents from '@/components/match-events';
 import { getFifaRank } from '@/lib/fifa-rankings';
 import { fetchGroupStandings } from '@/lib/football-api';
-import type { ApiGoal, ApiBooking, ApiTeamStats, ApiStandingEntry, ApiLineup } from '@/lib/football-api';
+import type { ApiGoal, ApiBooking, ApiTeamStats, ApiStandingEntry, ApiLineup, ApiLineupPlayer } from '@/lib/football-api';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -40,22 +42,14 @@ function scorerLine(goal: ApiGoal) {
   return `${goal.scorer.name} ${goal.minute}'${goal.injuryTime ? `+${goal.injuryTime}` : ''}${goal.type === 'OWN_GOAL' ? ' (OG)' : goal.type === 'PENALTY' ? ' (P)' : ''}`;
 }
 
-// ─── Components ─────────────────────────────────────────────────────────────
+// ─── StatsCard (stats only — no goals/bookings lists) ───────────────────────
 
-function StatsCard({ homeTeam, awayTeam, homeCrest, awayCrest, goals, bookings, statistics }: {
+function StatsCard({ homeTeam, awayTeam, homeCrest, awayCrest, statistics }: {
   homeTeam: string; awayTeam: string;
   homeCrest: string | null; awayCrest: string | null;
-  goals: ApiGoal[]; bookings: ApiBooking[] | null;
   statistics: [ApiTeamStats, ApiTeamStats] | null;
 }) {
   const norm = (s: string) => s.trim().toLowerCase();
-  const homeGoals = goals.filter(x => norm(x.team.name) === norm(homeTeam));
-  const awayGoals = goals.filter(x => norm(x.team.name) === norm(awayTeam));
-  const b = bookings ?? [];
-  const homeBookings = b.filter(x => norm(x.team.name) === norm(homeTeam));
-  const awayBookings = b.filter(x => norm(x.team.name) === norm(awayTeam));
-  const goalsMatched = homeGoals.length + awayGoals.length > 0;
-
   const home = statistics?.find(s => norm(s.team.name) === norm(homeTeam)) ?? statistics?.[0];
   const away = statistics?.find(s => norm(s.team.name) !== norm(homeTeam)) ?? statistics?.[1];
 
@@ -75,35 +69,23 @@ function StatsCard({ homeTeam, awayTeam, homeCrest, awayCrest, goals, bookings, 
     { label: 'Corners', h: home.corners, a: away.corners },
   ].filter(r => r.h != null || r.a != null) : [];
 
-  const hasGoals = goals.length > 0;
-  const hasBookings = b.length > 0;
-  if (!hasGoals && !hasBookings && statRows.length === 0) return null;
+  if (statRows.length === 0) return null;
 
   return (
     <Card>
       <CardContent className="pt-4">
-        {/* Stats header with crests + colored squares */}
-        {statRows.length > 0 && (
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              {homeCrest && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={homeCrest} alt={homeTeam} className="h-5 w-5 object-contain" />
-              )}
-              <div className="h-3 w-3 rounded bg-green-600" />
-            </div>
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Team Stats</span>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded bg-red-600" />
-              {awayCrest && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={awayCrest} alt={awayTeam} className="h-5 w-5 object-contain" />
-              )}
-            </div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            {homeCrest && <img src={homeCrest} alt={homeTeam} className="h-5 w-5 object-contain" />}
+            <div className="h-3 w-3 rounded bg-green-600" />
           </div>
-        )}
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Team Stats</span>
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded bg-red-600" />
+            {awayCrest && <img src={awayCrest} alt={awayTeam} className="h-5 w-5 object-contain" />}
+          </div>
+        </div>
 
-        {/* Stat rows with color-highlighted winners */}
         {statRows.map(row => {
           const hNum = toNum(row.h), aNum = toNum(row.a);
           const homeHigher = hNum != null && aNum != null && hNum > aNum;
@@ -132,49 +114,12 @@ function StatsCard({ homeTeam, awayTeam, homeCrest, awayCrest, goals, bookings, 
             </div>
           );
         })}
-
-        {/* Goal scorers summary */}
-        {hasGoals && (
-          <div className={`grid grid-cols-2 gap-2 text-sm ${statRows.length > 0 ? 'mt-3 pt-3 border-t' : ''}`}>
-            <div className="space-y-0.5">
-              {goalsMatched
-                ? homeGoals.map((g, i) => <p key={i} className="text-xs">⚽ {scorerLine(g)}</p>)
-                : goals.sort((a, b) => a.minute - b.minute).map((g, i) => (
-                    <p key={i} className="text-xs">⚽ {scorerLine(g)} ({g.team.name})</p>
-                  ))
-              }
-            </div>
-            {goalsMatched && (
-              <div className="space-y-0.5 text-right">
-                {awayGoals.map((g, i) => <p key={i} className="text-xs">⚽ {scorerLine(g)}</p>)}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Bookings */}
-        {hasBookings && (
-          <div className="grid grid-cols-2 gap-2 text-sm mt-2 pt-2 border-t">
-            <div className="space-y-0.5">
-              {homeBookings.map((bk, i) => (
-                <p key={i} className="text-xs">
-                  {bk.card === 'RED_CARD' ? '🟥' : '🟨'} {bk.player.name} {bk.minute}&apos;
-                </p>
-              ))}
-            </div>
-            <div className="space-y-0.5 text-right">
-              {awayBookings.map((bk, i) => (
-                <p key={i} className="text-xs">
-                  {bk.card === 'RED_CARD' ? '🟥' : '🟨'} {bk.player.name} {bk.minute}&apos;
-                </p>
-              ))}
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
 }
+
+// ─── StandingsCard ────────────────────────────────────────────────────────────
 
 function StandingsCard({ groupName, standings, homeTeam, awayTeam }: {
   groupName: string;
@@ -234,43 +179,207 @@ function StandingsCard({ groupName, standings, homeTeam, awayTeam }: {
   );
 }
 
+// ─── LineupsCard (pitch visualization) ───────────────────────────────────────
+
+function rowsFromFormation(formation: string | null, starters: ApiLineupPlayer[]): ApiLineupPlayer[][] {
+  if (!formation) return [starters];
+  const parts = [1, ...formation.split('-').map(Number)];
+  const rows: ApiLineupPlayer[][] = [];
+  let idx = 0;
+  for (const count of parts) {
+    rows.push(starters.slice(idx, idx + count));
+    idx += count;
+  }
+  // put any leftovers in the last row
+  if (idx < starters.length) rows[rows.length - 1].push(...starters.slice(idx));
+  return rows;
+}
+
+function PitchHalf({
+  team,
+  lineup,
+  flipped,
+}: {
+  team: string;
+  lineup: ApiLineup;
+  flipped: boolean; // true = home (GK at bottom = flex-col-reverse)
+}) {
+  const rows = rowsFromFormation(lineup.formation, lineup.starters);
+
+  return (
+    <div className={`flex ${flipped ? 'flex-col-reverse' : 'flex-col'} gap-3 py-3`}>
+      {rows.map((row, ri) => (
+        <div key={ri} className="flex justify-around gap-1">
+          {row.map((p, pi) => (
+            <div key={pi} className="flex flex-col items-center gap-0.5 min-w-0 max-w-[60px]">
+              <div className="h-7 w-7 rounded-full bg-white/20 border border-white/40 flex items-center justify-center text-[10px] font-bold text-white">
+                {p.jersey ?? ''}
+              </div>
+              <span className="text-[9px] text-white text-center leading-tight truncate w-full text-center">
+                {p.name.split(' ').slice(-1)[0]}
+              </span>
+              {p.position && (
+                <span className="text-[8px] text-white/60 text-center leading-none">
+                  {p.position.slice(0, 3).toUpperCase()}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function LineupsCard({ homeTeam, awayTeam, lineups }: {
   homeTeam: string;
   awayTeam: string;
   lineups: [ApiLineup, ApiLineup];
 }) {
   const [home, away] = lineups;
+  const hasPitch = home.formation || away.formation;
+
   return (
     <Card>
       <CardHeader className="pb-1">
         <CardTitle className="text-base">Line-ups</CardTitle>
+        <div className="flex justify-between text-xs text-muted-foreground mt-1">
+          <span>{homeTeam}{home.formation ? ` · ${home.formation}` : ''}</span>
+          <span>{awayTeam}{away.formation ? ` · ${away.formation}` : ''}</span>
+        </div>
+      </CardHeader>
+      <CardContent className={hasPitch ? 'p-0' : undefined}>
+        {hasPitch ? (
+          /* Pitch visualization */
+          <div
+            className="relative mx-0 rounded-b-lg overflow-hidden"
+            style={{ background: 'linear-gradient(to bottom, #166534, #15803d)' }}
+          >
+            {/* Pitch markings */}
+            <div className="absolute inset-x-0 top-1/2 h-px bg-white/20" />
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-16 w-16 rounded-full border border-white/20" />
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full bg-white/30" />
+
+            <div className="relative grid grid-cols-2 divide-x divide-white/10 min-h-[320px]">
+              {/* Home half (GK at bottom) */}
+              <div className="flex flex-col">
+                <div className="text-[9px] text-white/60 text-center pt-2 pb-0 font-semibold uppercase tracking-wider">
+                  {homeTeam}
+                </div>
+                <PitchHalf team={homeTeam} lineup={home} flipped={true} />
+              </div>
+              {/* Away half (GK at top) */}
+              <div className="flex flex-col">
+                <PitchHalf team={awayTeam} lineup={away} flipped={false} />
+                <div className="text-[9px] text-white/60 text-center pb-2 pt-0 font-semibold uppercase tracking-wider">
+                  {awayTeam}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Fallback: two-column list */
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-widest truncate">{homeTeam}</p>
+              <div className="space-y-0.5">
+                {home.starters.map((p, i) => (
+                  <div key={i} className="flex items-center gap-1.5 text-xs">
+                    <span className="text-muted-foreground w-4 text-right shrink-0">{p.jersey ?? ''}</span>
+                    <span className="truncate">{p.name}</span>
+                    {p.position && <span className="text-[10px] text-muted-foreground shrink-0">{p.position.slice(0, 3).toUpperCase()}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-widest truncate text-right">{awayTeam}</p>
+              <div className="space-y-0.5">
+                {away.starters.map((p, i) => (
+                  <div key={i} className="flex items-center justify-end gap-1.5 text-xs">
+                    {p.position && <span className="text-[10px] text-muted-foreground shrink-0">{p.position.slice(0, 3).toUpperCase()}</span>}
+                    <span className="truncate">{p.name}</span>
+                    <span className="text-muted-foreground w-4 shrink-0">{p.jersey ?? ''}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Tournament History Card (knockout matches) ───────────────────────────────
+
+function TournamentHistoryCard({
+  homeTeam,
+  awayTeam,
+  homeCrest,
+  awayCrest,
+  homeHistory,
+  awayHistory,
+}: {
+  homeTeam: string;
+  awayTeam: string;
+  homeCrest: string | null;
+  awayCrest: string | null;
+  homeHistory: Array<{ opponent: string; homeScore: number | null; awayScore: number | null; wasHome: boolean; kickoffAt: Date }>;
+  awayHistory: Array<{ opponent: string; homeScore: number | null; awayScore: number | null; wasHome: boolean; kickoffAt: Date }>;
+}) {
+  if (homeHistory.length === 0 && awayHistory.length === 0) return null;
+
+  function resultBadge(match: { homeScore: number | null; awayScore: number | null; wasHome: boolean }) {
+    if (match.homeScore == null) return null;
+    const teamScore = match.wasHome ? match.homeScore : match.awayScore!;
+    const oppScore = match.wasHome ? match.awayScore! : match.homeScore;
+    const result = teamScore > oppScore ? 'W' : teamScore < oppScore ? 'L' : 'D';
+    return (
+      <Badge
+        variant={result === 'W' ? 'default' : result === 'D' ? 'secondary' : 'outline'}
+        className="text-[10px] px-1.5 py-0 h-4 shrink-0"
+      >
+        {result} {teamScore}–{oppScore}
+      </Badge>
+    );
+  }
+
+  function TeamHistory({ team, crest, history }: {
+    team: string;
+    crest: string | null;
+    history: typeof homeHistory;
+  }) {
+    return (
+      <div>
+        <div className="flex items-center gap-1.5 mb-2">
+          {crest && <img src={crest} alt={team} className="h-4 w-4 object-contain" />}
+          <span className="text-xs font-semibold truncate">{team}</span>
+        </div>
+        <div className="space-y-1.5">
+          {history.map((m, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-muted-foreground truncate">vs {m.opponent}</span>
+              {resultBadge(m)}
+            </div>
+          ))}
+          {history.length === 0 && (
+            <p className="text-xs text-muted-foreground">No previous matches</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-1">
+        <CardTitle className="text-base">Tournament History</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground mb-1 uppercase tracking-widest truncate">{homeTeam}</p>
-            {home.formation && <p className="text-[10px] text-muted-foreground mb-2">{home.formation}</p>}
-            <div className="space-y-0.5">
-              {home.starters.map((p, i) => (
-                <div key={i} className="flex items-center gap-1.5 text-xs">
-                  <span className="text-muted-foreground w-4 text-right shrink-0">{p.jersey ?? ''}</span>
-                  <span className="truncate">{p.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground mb-1 uppercase tracking-widest truncate text-right">{awayTeam}</p>
-            {away.formation && <p className="text-[10px] text-muted-foreground mb-2 text-right">{away.formation}</p>}
-            <div className="space-y-0.5">
-              {away.starters.map((p, i) => (
-                <div key={i} className="flex items-center justify-end gap-1.5 text-xs">
-                  <span className="truncate">{p.name}</span>
-                  <span className="text-muted-foreground w-4 shrink-0">{p.jersey ?? ''}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <TeamHistory team={homeTeam} crest={homeCrest} history={homeHistory} />
+          <TeamHistory team={awayTeam} crest={awayCrest} history={awayHistory} />
         </div>
       </CardContent>
     </Card>
@@ -294,12 +403,14 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
 
   const isLocked = new Date() >= match.kickoffAt;
   const isFinished = match.status === 'FINISHED';
+  const isLive = match.status === 'LIVE';
 
-  // Extract group name from stage (e.g. "Group A" from "Group Stage - Group A" or "Group A")
+  // Extract group name from stage
   const groupMatch = match.stage?.match(/Group [A-Z]/i);
   const groupName = groupMatch?.[0] ?? null;
+  const isKnockout = !groupName && match.stage != null && match.stage.trim() !== '';
 
-  // Fetch group standings (1-hour cached fetch, separate from force-dynamic page cache)
+  // Fetch group standings (1-hour cached)
   const standings = groupName
     ? await fetchGroupStandings(groupName).catch(() => null)
     : null;
@@ -315,32 +426,51 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   const dataInvalid = Array.isArray(goalsData) && goalsData.length === 0 && expectedGoals > 0;
   const hasEvents = Array.isArray(goalsData) && goalsData.length > 0;
 
-  // Pre-derive goal scorer lists (used in header + StatsCard)
   const homeGoals = hasEvents ? goalsData.filter(x => norm(x.team.name) === norm(match.homeTeam)) : [];
   const awayGoals = hasEvents ? goalsData.filter(x => norm(x.team.name) === norm(match.awayTeam)) : [];
 
+  // Fetch tournament history for knockout matches
+  let homeHistory: Array<{ opponent: string; homeScore: number | null; awayScore: number | null; wasHome: boolean; kickoffAt: Date }> = [];
+  let awayHistory: typeof homeHistory = [];
+
+  if (isKnockout && match.homeTeam && match.awayTeam) {
+    const allMatches = await db.select().from(matches).where(eq(matches.status, 'FINISHED'));
+    homeHistory = allMatches
+      .filter(m => m.id !== match.id && (norm(m.homeTeam) === norm(match.homeTeam) || norm(m.awayTeam) === norm(match.homeTeam)))
+      .sort((a, b) => new Date(a.kickoffAt).getTime() - new Date(b.kickoffAt).getTime())
+      .map(m => {
+        const wasHome = norm(m.homeTeam) === norm(match.homeTeam);
+        return { opponent: wasHome ? m.awayTeam : m.homeTeam, homeScore: m.homeScore, awayScore: m.awayScore, wasHome, kickoffAt: new Date(m.kickoffAt) };
+      });
+    awayHistory = allMatches
+      .filter(m => m.id !== match.id && (norm(m.homeTeam) === norm(match.awayTeam) || norm(m.awayTeam) === norm(match.awayTeam)))
+      .sort((a, b) => new Date(a.kickoffAt).getTime() - new Date(b.kickoffAt).getTime())
+      .map(m => {
+        const wasHome = norm(m.homeTeam) === norm(match.awayTeam);
+        return { opponent: wasHome ? m.awayTeam : m.homeTeam, homeScore: m.homeScore, awayScore: m.awayScore, wasHome, kickoffAt: new Date(m.kickoffAt) };
+      });
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
+      <LiveMatchPoller isLive={isLive} />
 
       {/* ── Dark match header ────────────────────────────────────── */}
       <div className="rounded-xl overflow-hidden bg-zinc-900 text-white">
-        {/* Top bar: competition + date + status */}
         <div className="flex items-center justify-between px-4 pt-3 pb-1 text-xs text-zinc-400">
           <span>
-            FIFA World Cup 2026™{groupName ? ` · ${groupName}` : ''} · {formatShortDate(new Date(match.kickoffAt), user.timezone)}
+            FIFA World Cup 2026™{groupName ? ` · ${groupName}` : match.stage ? ` · ${match.stage}` : ''} · {formatShortDate(new Date(match.kickoffAt), user.timezone)}
           </span>
           <span className={
             isFinished ? 'text-zinc-300' :
-            match.status === 'LIVE' ? 'text-red-400 font-semibold' :
+            isLive ? 'text-red-400 font-semibold animate-pulse' :
             'text-zinc-400'
           }>
-            {isFinished ? 'Full-time' : match.status === 'LIVE' ? '🔴 Live' : formatKickoff(new Date(match.kickoffAt), user.timezone)}
+            {isFinished ? 'Full-time' : isLive ? '🔴 Live' : formatKickoff(new Date(match.kickoffAt), user.timezone)}
           </span>
         </div>
 
-        {/* Score row */}
         <div className="flex items-center justify-between px-6 py-5">
-          {/* Home team */}
           <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
             {match.homeTeamCrest && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -351,9 +481,8 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
             <span className="text-[10px] text-zinc-600">FIFA #{getFifaRank(match.homeTeam) ?? '—'}</span>
           </div>
 
-          {/* Score */}
           <div className="text-center px-4 shrink-0">
-            {(isFinished || match.status === 'LIVE') && match.homeScore != null ? (
+            {(isFinished || isLive) && match.homeScore != null ? (
               <div className="text-5xl font-bold tabular-nums tracking-tight">
                 {match.homeScore} <span className="text-zinc-600">–</span> {match.awayScore}
               </div>
@@ -367,7 +496,6 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
             )}
           </div>
 
-          {/* Away team */}
           <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
             {match.awayTeamCrest && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -380,7 +508,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         </div>
 
         {/* Inline goal scorers */}
-        {isFinished && hasEvents && (homeGoals.length > 0 || awayGoals.length > 0) && (
+        {(isFinished || isLive) && hasEvents && (homeGoals.length > 0 || awayGoals.length > 0) && (
           <div className="flex justify-between px-6 pb-3 text-xs text-zinc-400 border-t border-zinc-800 pt-3">
             <div className="space-y-0.5 flex-1">
               {homeGoals.map((g, i) => <div key={i}>⚽ {scorerLine(g)}</div>)}
@@ -443,8 +571,11 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         </CardContent>
       </Card>
 
-      {/* ── Events / stats / messages (finished matches only) ────── */}
-      {isFinished && (() => {
+      {/* ── Friends' predictions (visible after kickoff) ─────────── */}
+      {isLocked && <FriendsPredictionsCard matchId={match.id} />}
+
+      {/* ── Events / stats (finished + live matches) ─────────────── */}
+      {(isFinished || isLive) && (() => {
         if (neverSynced) {
           return (
             <Card>
@@ -463,7 +594,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
             </Card>
           );
         }
-        if (!hasEvents) return null; // 0-0, no events expected
+        if (!hasEvents) return null;
 
         return (
           <>
@@ -472,8 +603,6 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               awayTeam={match.awayTeam}
               homeCrest={match.homeTeamCrest ?? null}
               awayCrest={match.awayTeamCrest ?? null}
-              goals={goalsData}
-              bookings={match.bookings as ApiBooking[] | null}
               statistics={match.statistics as [ApiTeamStats, ApiTeamStats] | null}
             />
             <MatchEvents
@@ -510,6 +639,18 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           />
         );
       })()}
+
+      {/* ── Tournament history (knockout matches) ────────────────── */}
+      {isKnockout && (
+        <TournamentHistoryCard
+          homeTeam={match.homeTeam}
+          awayTeam={match.awayTeam}
+          homeCrest={match.homeTeamCrest ?? null}
+          awayCrest={match.awayTeamCrest ?? null}
+          homeHistory={homeHistory}
+          awayHistory={awayHistory}
+        />
+      )}
     </div>
   );
 }

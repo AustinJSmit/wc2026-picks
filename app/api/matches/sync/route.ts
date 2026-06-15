@@ -19,29 +19,35 @@ export async function POST() {
   let failed = 0;
 
   for (const m of apiMatches) {
-    if (!m.homeTeam.name || !m.awayTeam.name) continue; // skip TBD knockout matches
+    // Skip group stage matches with no team names; always upsert knockout matches (teams may be TBD)
+    const isGroupStage = (m.stage ?? '').toLowerCase().includes('group');
+    if (isGroupStage && (!m.homeTeam.name || !m.awayTeam.name)) continue;
     try {
+      const homeTeamName = m.homeTeam.name || 'TBD';
+      const awayTeamName = m.awayTeam.name || 'TBD';
       const insertValues = {
         apiId: String(m.id),
-        homeTeam: m.homeTeam.name,
-        awayTeam: m.awayTeam.name,
+        homeTeam: homeTeamName,
+        awayTeam: awayTeamName,
         kickoffAt: new Date(m.utcDate),
         status: m.status,
         homeScore: m.score.fullTime.home,
         awayScore: m.score.fullTime.away,
         stage: m.stage ?? null,
-        homeTeamCrest: m.homeTeam.crest ?? null,
-        awayTeamCrest: m.awayTeam.crest ?? null,
+        homeTeamCrest: m.homeTeam.crest || null,
+        awayTeamCrest: m.awayTeam.crest || null,
       };
-      // On conflict: only update schedule/score fields — never overwrite ESPN event data
+      // On conflict: update schedule/score/team fields (teams may become known over time); never overwrite ESPN event data
       const updateValues = {
+        homeTeam: homeTeamName,
+        awayTeam: awayTeamName,
         status: m.status,
         homeScore: m.score.fullTime.home,
         awayScore: m.score.fullTime.away,
         kickoffAt: new Date(m.utcDate),
         stage: m.stage ?? null,
-        homeTeamCrest: m.homeTeam.crest ?? null,
-        awayTeamCrest: m.awayTeam.crest ?? null,
+        homeTeamCrest: m.homeTeam.crest || null,
+        awayTeamCrest: m.awayTeam.crest || null,
       };
 
       await db
@@ -96,9 +102,13 @@ export async function POST() {
         homeScore: matches.homeScore,
         awayScore: matches.awayScore,
         goals: matches.goals,
+        status: matches.status,
       })
       .from(matches)
-      .where(and(eq(matches.status, 'FINISHED'), or(isNull(matches.goals), isNull(matches.lineups))))
+      .where(and(
+        or(eq(matches.status, 'FINISHED'), eq(matches.status, 'LIVE')),
+        or(isNull(matches.goals), isNull(matches.lineups))
+      ))
       .orderBy(desc(matches.kickoffAt))
       .limit(10);
 
@@ -115,9 +125,11 @@ export async function POST() {
         const totalExpected = (match.homeScore ?? 0) + (match.awayScore ?? 0);
         // Accept partial goal data — ESPN keyEvents sometimes misses own-goals or penalty encodings.
         // Only reject if ESPN returned 0 goals when we expect goals (likely a failed fetch).
+        const isLiveMatch = match.status === 'LIVE';
         const validData = totalExpected === 0 || detail.goals.length > 0;
         const goalCountMatches = detail.goals.length === totalExpected;
-        const goalsAlreadyFilled = match.goals !== null;
+        // For LIVE matches, always overwrite goals so each sync reflects current state
+        const goalsAlreadyFilled = !isLiveMatch && match.goals !== null;
 
         if (validData && !goalsAlreadyFilled) {
           // Full update: goals + bookings + stats + lineups + venue + attendance

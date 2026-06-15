@@ -38,8 +38,20 @@ const TIMEZONES = [
 
 const KNOWN_VALUES = new Set(TIMEZONES.map(t => t.value));
 
-export default function SettingsForm({ timezone: savedTimezone }: { timezone: string | null }) {
+type DarkMode = 'system' | 'light' | 'dark';
+
+const DARK_OPTIONS: { value: DarkMode; label: string; desc: string }[] = [
+  { value: 'system', label: 'System', desc: 'Follows your device setting' },
+  { value: 'light', label: 'Light', desc: 'Always light' },
+  { value: 'dark', label: 'Dark', desc: 'Always dark' },
+];
+
+export default function SettingsForm({ timezone: savedTimezone, darkMode: savedDarkMode }: {
+  timezone: string | null;
+  darkMode: string | null;
+}) {
   const [timezone, setTimezone] = useState(savedTimezone ?? '');
+  const [darkMode, setDarkMode] = useState<DarkMode>((savedDarkMode as DarkMode) ?? 'system');
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,6 +63,12 @@ export default function SettingsForm({ timezone: savedTimezone }: { timezone: st
     }
   }, []);
 
+  function applyThemeLocally(t: DarkMode) {
+    const isDark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.classList.toggle('dark', isDark);
+    document.cookie = `theme=${t}; path=/; max-age=${365 * 24 * 3600}; SameSite=Lax`;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaved(false);
@@ -60,7 +78,7 @@ export default function SettingsForm({ timezone: savedTimezone }: { timezone: st
     const res = await fetch('/api/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ timezone }),
+      body: JSON.stringify({ timezone, darkMode }),
     });
 
     const data = await res.json();
@@ -71,47 +89,73 @@ export default function SettingsForm({ timezone: savedTimezone }: { timezone: st
       return;
     }
 
+    applyThemeLocally(darkMode);
     setSaved(true);
   }
 
-  // If the saved/detected timezone isn't in the curated list, add it at the top
   const options = timezone && !KNOWN_VALUES.has(timezone)
     ? [{ value: timezone, label: `${timezone} (detected)` }, ...TIMEZONES]
     : TIMEZONES;
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-1.5">
-            <Label>Timezone</Label>
-            <p className="text-xs text-muted-foreground">
-              Kickoff times across the app will display in this timezone.
-            </p>
-            <Select value={timezone} onValueChange={(v) => setTimezone(v ?? '')}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a timezone…" />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map(tz => (
-                  <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="pt-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Timezone */}
+            <div className="space-y-1.5">
+              <Label>Timezone</Label>
+              <p className="text-xs text-muted-foreground">
+                Kickoff times across the app will display in this timezone.
+              </p>
+              <Select value={timezone} onValueChange={(v) => setTimezone(v ?? '')}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a timezone…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map(tz => (
+                    <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Appearance */}
+            <div className="space-y-1.5">
+              <Label>Appearance</Label>
+              <p className="text-xs text-muted-foreground">Choose your preferred color theme.</p>
+              <div className="flex gap-2">
+                {DARK_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setDarkMode(opt.value)}
+                    className={`flex-1 border rounded-lg px-3 py-2 text-sm text-left transition-colors ${
+                      darkMode === opt.value
+                        ? 'border-primary bg-primary/10 font-medium'
+                        : 'border-border hover:border-muted-foreground'
+                    }`}
+                  >
+                    <div className="font-medium">{opt.label}</div>
+                    <div className="text-xs text-muted-foreground">{opt.desc}</div>
+                  </button>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
+              </div>
+            </div>
 
-          {error && (
-            <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">{error}</p>
-          )}
-          {saved && (
-            <p className="text-sm text-primary bg-primary/10 px-3 py-2 rounded-md">Settings saved!</p>
-          )}
+            {error && (
+              <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">{error}</p>
+            )}
+            {saved && (
+              <p className="text-sm text-primary bg-primary/10 px-3 py-2 rounded-md">Settings saved!</p>
+            )}
 
-          <Button type="submit" disabled={loading || !timezone}>
-            {loading ? 'Saving…' : 'Save settings'}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+            <Button type="submit" disabled={loading || !timezone}>
+              {loading ? 'Saving…' : 'Save settings'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
