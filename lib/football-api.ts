@@ -155,7 +155,8 @@ export async function fetchESPNMatchDetail(espnId: string): Promise<{
     const injuryTime = injuryMatch ? parseInt(injuryMatch[2], 10) : null;
     const teamName: string = evt.team?.displayName ?? '';
 
-    if (typeStr === 'goal' || typeStr === 'penalty---scored' || typeStr === 'own-goal') {
+    const isGoal = typeStr === 'goal' || typeStr.startsWith('goal---') || typeStr === 'penalty---scored' || typeStr === 'own-goal';
+    if (isGoal) {
       const scorer: string = evt.participants?.[0]?.athlete?.displayName ?? '';
       const assistRaw: string | null = evt.participants?.[1]?.athlete?.displayName ?? null;
       const goalType = typeStr === 'penalty---scored' || evt.penaltyKick
