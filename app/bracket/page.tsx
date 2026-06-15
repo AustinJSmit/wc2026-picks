@@ -17,19 +17,14 @@ const ROUND_ORDER = [
   'Round of 16',
   'Quarterfinal',
   'Semifinal',
-  'Third Place',
+  '3rd Place Match',
   'Final',
 ];
 
 function getRoundLabel(stage: string | null): string {
   if (!stage) return 'Knockout';
-  if (stage.includes('32')) return 'Round of 32';
-  if (stage.includes('16')) return 'Round of 16';
-  if (stage.includes('Quarter')) return 'Quarterfinal';
-  if (stage.includes('Semi')) return 'Semifinal';
-  if (stage.includes('Third') || stage.includes('3rd') || stage.includes('Place')) return 'Third Place';
-  if (stage.includes('Final')) return 'Final';
-  return stage;
+  // Stage values are stored exactly as round names (Round of 32, Quarterfinal, etc.)
+  return ROUND_ORDER.includes(stage) ? stage : stage;
 }
 
 function formatDate(d: Date) {

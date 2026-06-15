@@ -109,7 +109,7 @@ export async function fetchESPNFixtures(): Promise<ApiMatch[]> {
           'round-of-16': 'Round of 16',
           'quarterfinals': 'Quarterfinal',
           'semifinals': 'Semifinal',
-          'third-place': 'Third Place',
+          'third-place': '3rd Place Match',
           'final': 'Final',
         };
         stage = SLUG_LABELS[slug] ?? slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
