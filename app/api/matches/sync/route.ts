@@ -89,7 +89,7 @@ export async function POST() {
         or(isNull(matches.goals), isNull(matches.statistics)),
       ))
       .orderBy(desc(matches.kickoffAt))
-      .limit(10);
+      .limit(4);
 
     for (const match of needsDetail) {
       if (!match.apiId) continue;
