@@ -21,7 +21,7 @@ export async function POST() {
   for (const m of apiMatches) {
     if (!m.homeTeam.name || !m.awayTeam.name) continue; // skip TBD knockout matches
     try {
-      const values = {
+      const insertValues = {
         apiId: String(m.id),
         homeTeam: m.homeTeam.name,
         awayTeam: m.awayTeam.name,
@@ -32,14 +32,22 @@ export async function POST() {
         stage: m.stage ?? null,
         homeTeamCrest: m.homeTeam.crest ?? null,
         awayTeamCrest: m.awayTeam.crest ?? null,
-        goals: m.goals.length > 0 ? m.goals : null,
-        bookings: m.bookings.length > 0 ? m.bookings : null,
+      };
+      // On conflict: only update schedule/score fields — never overwrite ESPN event data
+      const updateValues = {
+        status: m.status,
+        homeScore: m.score.fullTime.home,
+        awayScore: m.score.fullTime.away,
+        kickoffAt: new Date(m.utcDate),
+        stage: m.stage ?? null,
+        homeTeamCrest: m.homeTeam.crest ?? null,
+        awayTeamCrest: m.awayTeam.crest ?? null,
       };
 
       await db
         .insert(matches)
-        .values(values)
-        .onConflictDoUpdate({ target: matches.apiId, set: values });
+        .values(insertValues)
+        .onConflictDoUpdate({ target: matches.apiId, set: updateValues });
 
       synced++;
     } catch {
@@ -78,7 +86,7 @@ export async function POST() {
 
   // Back-fill goals/bookings/statistics for recently finished matches that are still missing them
   let detailsFilled = 0;
-  const detailResults: { apiId: string; status: 'ok' | 'error'; goalsFound: number; valid?: boolean; expectedGoals?: number; error?: string }[] = [];
+  const detailResults: { apiId: string; status: 'ok' | 'error'; goalsFound: number; valid?: boolean; goalCountMatches?: boolean; expectedGoals?: number; error?: string }[] = [];
 
   try {
     const needsDetail = await db
@@ -116,12 +124,15 @@ export async function POST() {
 
         const detail = await fetchESPNMatchDetail(espnId);
 
-        // Sanity check: ESPN goal count should match the stored final score
         const totalExpected = (match.homeScore ?? 0) + (match.awayScore ?? 0);
-        const validData = detail.goals.length === totalExpected;
+        // ESPN sometimes misses goal events (own-goal encoding, etc.) so we accept partial data.
+        // We already validated the correct match via team-name lookup in findESPNEventId.
+        // Only reject if ESPN returned 0 goals AND we expect goals (could be a fetch problem).
+        const validData = totalExpected === 0 || detail.goals.length > 0;
+        const goalCountMatches = detail.goals.length === totalExpected;
         const goalsAlreadyFilled = match.goals !== null;
 
-        if (validData) {
+        if (validData && !goalsAlreadyFilled) {
           // Full update: goals + bookings + stats + lineups + venue + attendance
           await db.update(matches)
             .set({
@@ -133,9 +144,9 @@ export async function POST() {
               attendance: detail.attendance ?? null,
             })
             .where(eq(matches.id, match.id));
-          if (detail.goals.length > 0 || totalExpected === 0) detailsFilled++;
+          detailsFilled++;
         } else if (goalsAlreadyFilled) {
-          // Goals already valid — only backfill lineups/venue/attendance
+          // Goals already filled — only backfill supplemental data
           await db.update(matches)
             .set({
               lineups: detail.lineups ?? null,
@@ -144,14 +155,15 @@ export async function POST() {
             })
             .where(eq(matches.id, match.id));
         }
-        // else: goals NULL and ESPN count mismatch — leave goals NULL so next sync retries
+        // else: 0 goals returned from ESPN when we expect some — leave NULL and retry next sync
 
         detailResults.push({
           apiId: match.apiId ?? '',
           status: 'ok',
           goalsFound: detail.goals.length,
           valid: validData,
-          ...(!validData && { expectedGoals: totalExpected }),
+          goalCountMatches,
+          ...(!goalCountMatches && { expectedGoals: totalExpected }),
         });
       } catch (err) {
         detailResults.push({ apiId: match.apiId ?? '', status: 'error', goalsFound: 0, error: String(err) });
