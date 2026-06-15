@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { matches, predictions } from '@/db/schema';
-import { eq, isNull, desc, and } from 'drizzle-orm';
+import { eq, isNull, desc, and, or } from 'drizzle-orm';
 import { fetchWCMatches, findESPNEventId, fetchESPNMatchDetail } from '@/lib/football-api';
 import type { ApiMatch } from '@/lib/football-api';
 import { calculatePoints } from '@/lib/scoring';
@@ -78,7 +78,7 @@ export async function POST() {
 
   // Back-fill goals/bookings/statistics for recently finished matches that are still missing them
   let detailsFilled = 0;
-  const detailResults: { apiId: string; status: 'ok' | 'error'; goalsFound: number; valid?: boolean; error?: string }[] = [];
+  const detailResults: { apiId: string; status: 'ok' | 'error'; goalsFound: number; valid?: boolean; expectedGoals?: number; error?: string }[] = [];
 
   try {
     const needsDetail = await db
@@ -91,11 +91,12 @@ export async function POST() {
         kickoffAt: matches.kickoffAt,
         homeScore: matches.homeScore,
         awayScore: matches.awayScore,
+        goals: matches.goals,
       })
       .from(matches)
-      .where(and(eq(matches.status, 'FINISHED'), isNull(matches.goals)))
+      .where(and(eq(matches.status, 'FINISHED'), or(isNull(matches.goals), isNull(matches.lineups))))
       .orderBy(desc(matches.kickoffAt))
-      .limit(4);
+      .limit(10);
 
     for (const match of needsDetail) {
       try {
@@ -118,17 +119,40 @@ export async function POST() {
         // Sanity check: ESPN goal count should match the stored final score
         const totalExpected = (match.homeScore ?? 0) + (match.awayScore ?? 0);
         const validData = detail.goals.length === totalExpected;
+        const goalsAlreadyFilled = match.goals !== null;
 
-        await db.update(matches)
-          .set({
-            goals: validData ? (detail.goals.length > 0 ? detail.goals : []) : [],
-            bookings: validData && detail.bookings.length > 0 ? detail.bookings : null,
-            statistics: validData ? (detail.statistics ?? null) : null,
-          })
-          .where(eq(matches.id, match.id));
+        if (validData) {
+          // Full update: goals + bookings + stats + lineups + venue + attendance
+          await db.update(matches)
+            .set({
+              goals: detail.goals.length > 0 ? detail.goals : [],
+              bookings: detail.bookings.length > 0 ? detail.bookings : null,
+              statistics: detail.statistics ?? null,
+              lineups: detail.lineups ?? null,
+              venue: detail.venue ?? null,
+              attendance: detail.attendance ?? null,
+            })
+            .where(eq(matches.id, match.id));
+          if (detail.goals.length > 0 || totalExpected === 0) detailsFilled++;
+        } else if (goalsAlreadyFilled) {
+          // Goals already valid — only backfill lineups/venue/attendance
+          await db.update(matches)
+            .set({
+              lineups: detail.lineups ?? null,
+              venue: detail.venue ?? null,
+              attendance: detail.attendance ?? null,
+            })
+            .where(eq(matches.id, match.id));
+        }
+        // else: goals NULL and ESPN count mismatch — leave goals NULL so next sync retries
 
-        detailResults.push({ apiId: match.apiId ?? '', status: 'ok', goalsFound: detail.goals.length, valid: validData });
-        if (validData && detail.goals.length > 0) detailsFilled++;
+        detailResults.push({
+          apiId: match.apiId ?? '',
+          status: 'ok',
+          goalsFound: detail.goals.length,
+          valid: validData,
+          ...(!validData && { expectedGoals: totalExpected }),
+        });
       } catch (err) {
         detailResults.push({ apiId: match.apiId ?? '', status: 'error', goalsFound: 0, error: String(err) });
       }

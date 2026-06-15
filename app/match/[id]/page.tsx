@@ -11,7 +11,7 @@ import PredictionForm from './prediction-form';
 import MatchEvents from '@/components/match-events';
 import { getFifaRank } from '@/lib/fifa-rankings';
 import { fetchGroupStandings } from '@/lib/football-api';
-import type { ApiGoal, ApiBooking, ApiTeamStats, ApiStandingEntry } from '@/lib/football-api';
+import type { ApiGoal, ApiBooking, ApiTeamStats, ApiStandingEntry, ApiLineup } from '@/lib/football-api';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -234,6 +234,49 @@ function StandingsCard({ groupName, standings, homeTeam, awayTeam }: {
   );
 }
 
+function LineupsCard({ homeTeam, awayTeam, lineups }: {
+  homeTeam: string;
+  awayTeam: string;
+  lineups: [ApiLineup, ApiLineup];
+}) {
+  const [home, away] = lineups;
+  return (
+    <Card>
+      <CardHeader className="pb-1">
+        <CardTitle className="text-base">Line-ups</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-1 uppercase tracking-widest truncate">{homeTeam}</p>
+            {home.formation && <p className="text-[10px] text-muted-foreground mb-2">{home.formation}</p>}
+            <div className="space-y-0.5">
+              {home.starters.map((p, i) => (
+                <div key={i} className="flex items-center gap-1.5 text-xs">
+                  <span className="text-muted-foreground w-4 text-right shrink-0">{p.jersey ?? ''}</span>
+                  <span className="truncate">{p.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-1 uppercase tracking-widest truncate text-right">{awayTeam}</p>
+            {away.formation && <p className="text-[10px] text-muted-foreground mb-2 text-right">{away.formation}</p>}
+            <div className="space-y-0.5">
+              {away.starters.map((p, i) => (
+                <div key={i} className="flex items-center justify-end gap-1.5 text-xs">
+                  <span className="truncate">{p.name}</span>
+                  <span className="text-muted-foreground w-4 shrink-0">{p.jersey ?? ''}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default async function MatchPage({ params }: { params: Promise<{ id: string }> }) {
@@ -338,13 +381,22 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
 
         {/* Inline goal scorers */}
         {isFinished && hasEvents && (homeGoals.length > 0 || awayGoals.length > 0) && (
-          <div className="flex justify-between px-6 pb-4 text-xs text-zinc-400 border-t border-zinc-800 pt-3">
+          <div className="flex justify-between px-6 pb-3 text-xs text-zinc-400 border-t border-zinc-800 pt-3">
             <div className="space-y-0.5 flex-1">
               {homeGoals.map((g, i) => <div key={i}>⚽ {scorerLine(g)}</div>)}
             </div>
             <div className="space-y-0.5 flex-1 text-right">
               {awayGoals.map((g, i) => <div key={i}>{scorerLine(g)} ⚽</div>)}
             </div>
+          </div>
+        )}
+
+        {/* Venue + attendance */}
+        {isFinished && (match.venue || match.attendance) && (
+          <div className="px-6 pb-3 text-[10px] text-zinc-500 text-center">
+            {[match.venue, match.attendance ? match.attendance.toLocaleString() + ' att.' : null]
+              .filter(Boolean)
+              .join(' · ')}
           </div>
         )}
       </div>
@@ -445,6 +497,19 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           awayTeam={match.awayTeam}
         />
       )}
+
+      {/* ── Line-ups ─────────────────────────────────────────────── */}
+      {isFinished && (() => {
+        const lineupsData = match.lineups as [ApiLineup, ApiLineup] | null;
+        if (!lineupsData) return null;
+        return (
+          <LineupsCard
+            homeTeam={match.homeTeam}
+            awayTeam={match.awayTeam}
+            lineups={lineupsData}
+          />
+        );
+      })()}
     </div>
   );
 }

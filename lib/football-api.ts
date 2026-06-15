@@ -28,6 +28,17 @@ export interface ApiBooking {
   card: 'YELLOW_CARD' | 'RED_CARD';
 }
 
+export interface ApiLineupPlayer {
+  name: string;
+  jersey: number | null;
+  position: string | null;
+}
+
+export interface ApiLineup {
+  formation: string | null;
+  starters: ApiLineupPlayer[];
+}
+
 export interface ApiTeamStats {
   team: { name: string };
   possession: string | null;
@@ -75,30 +86,35 @@ export async function findESPNEventId(
   homeTeam: string,
   awayTeam: string,
 ): Promise<string | null> {
-  const yyyymmdd = date.toISOString().slice(0, 10).replace(/-/g, '');
-  const res = await fetch(
-    `https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=${yyyymmdd}&limit=50`,
-    { next: { revalidate: 0 } },
-  );
-  if (!res.ok) return null;
-  const data = await res.json();
   const normHome = normalizeName(homeTeam);
   const normAway = normalizeName(awayTeam);
 
-  for (const event of data.events ?? []) {
-    const comps: Array<{ team: { displayName: string }; homeAway: string }> =
-      event.competitions?.[0]?.competitors ?? [];
-    const home = comps.find((c) => c.homeAway === 'home');
-    const away = comps.find((c) => c.homeAway === 'away');
-    if (!home || !away) continue;
-    const normH = normalizeName(home.team.displayName);
-    const normA = normalizeName(away.team.displayName);
-    // Substring match handles "Turkiye"↔"Turkey", "Korea Republic"↔"South Korea", etc.
-    if (
-      (normH.includes(normHome) || normHome.includes(normH)) &&
-      (normA.includes(normAway) || normAway.includes(normA))
-    ) {
-      return String(event.id);
+  // Try day-before, same day, and day-after to handle UTC/local-time boundary mismatches
+  for (const offset of [-1, 0, 1]) {
+    const d = new Date(date.getTime() + offset * 86400000);
+    const yyyymmdd = d.toISOString().slice(0, 10).replace(/-/g, '');
+    const res = await fetch(
+      `https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=${yyyymmdd}&limit=50`,
+      { next: { revalidate: 0 } },
+    );
+    if (!res.ok) continue;
+    const data = await res.json();
+
+    for (const event of data.events ?? []) {
+      const comps: Array<{ team: { displayName: string }; homeAway: string }> =
+        event.competitions?.[0]?.competitors ?? [];
+      const home = comps.find((c) => c.homeAway === 'home');
+      const away = comps.find((c) => c.homeAway === 'away');
+      if (!home || !away) continue;
+      const normH = normalizeName(home.team.displayName);
+      const normA = normalizeName(away.team.displayName);
+      // Substring match handles "Turkiye"↔"Turkey", "Korea Republic"↔"South Korea", etc.
+      if (
+        (normH.includes(normHome) || normHome.includes(normH)) &&
+        (normA.includes(normAway) || normAway.includes(normA))
+      ) {
+        return String(event.id);
+      }
     }
   }
   return null;
@@ -108,12 +124,16 @@ export async function fetchESPNMatchDetail(espnId: string): Promise<{
   goals: ApiGoal[];
   bookings: ApiBooking[];
   statistics: [ApiTeamStats, ApiTeamStats] | null;
+  lineups: [ApiLineup, ApiLineup] | null;
+  venue: string | null;
+  attendance: number | null;
 }> {
+  const empty = { goals: [], bookings: [], statistics: null, lineups: null, venue: null, attendance: null };
   const res = await fetch(
     `https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary?event=${espnId}`,
     { next: { revalidate: 0 } },
   );
-  if (!res.ok) return { goals: [], bookings: [], statistics: null };
+  if (!res.ok) return empty;
   const data = await res.json();
 
   const comps = data.header?.competitions?.[0] ?? data.competitions?.[0];
@@ -153,36 +173,76 @@ export async function fetchESPNMatchDetail(espnId: string): Promise<{
     }
   }
 
-  // ESPN provides possession, shots, corners, fouls — not passes/offsides/saves
   type EspnStatArr = Array<{ name: string; displayValue: string }>;
-  function parseStats(comp: { statistics?: EspnStatArr } | undefined, name: string): ApiTeamStats {
-    const stats: EspnStatArr = comp?.statistics ?? [];
+  function parseStats(statsArr: EspnStatArr | undefined, teamName: string): ApiTeamStats {
+    const stats: EspnStatArr = statsArr ?? [];
     const findNum = (key: string) => {
       const v = stats.find((s) => s.name === key)?.displayValue ?? null;
       return v == null ? null : parseFloat(v) || null;
     };
+    const findStr = (key: string) => stats.find((s) => s.name === key)?.displayValue ?? null;
     return {
-      team: { name },
-      possession: stats.find((s) => s.name === 'possessionPct')?.displayValue ?? null,
+      team: { name: teamName },
+      possession: findStr('possessionPct'),
       shotsOnGoal: findNum('shotsOnTarget'),
       totalShots: findNum('totalShots'),
       corners: findNum('wonCorners'),
       fouls: findNum('foulsCommitted'),
-      offsides: null,
-      yellowCards: null,
-      redCards: null,
-      saves: null,
-      totalPasses: null,
-      passAccuracy: null,
+      offsides: findNum('offsides'),
+      yellowCards: findNum('yellowCards'),
+      redCards: findNum('redCards'),
+      saves: findNum('saves'),
+      totalPasses: findNum('totalPasses'),
+      passAccuracy: findStr('passPct'),
     };
   }
 
+  // Prefer boxscore.teams (has all 28 stats including yellow/red cards, saves, offsides, passes)
+  type BsTeam = { homeAway: string; team: { displayName: string }; statistics?: EspnStatArr };
+  const bsTeams: BsTeam[] = data.boxscore?.teams ?? [];
+  const homeBS = bsTeams.find((t) => t.homeAway === 'home');
+  const awayBS = bsTeams.find((t) => t.homeAway === 'away');
+
   let statistics: [ApiTeamStats, ApiTeamStats] | null = null;
-  if (homeComp?.statistics?.length || awayComp?.statistics?.length) {
-    statistics = [parseStats(homeComp, homeTeamName), parseStats(awayComp, awayTeamName)];
+  if (homeBS?.statistics?.length || awayBS?.statistics?.length) {
+    statistics = [
+      parseStats(homeBS?.statistics, homeBS?.team?.displayName ?? homeTeamName),
+      parseStats(awayBS?.statistics, awayBS?.team?.displayName ?? awayTeamName),
+    ];
+  } else if (homeComp?.statistics?.length || awayComp?.statistics?.length) {
+    // Fall back to header competitors stats (fewer fields, but better than nothing)
+    statistics = [parseStats(homeComp?.statistics, homeTeamName), parseStats(awayComp?.statistics, awayTeamName)];
   }
 
-  return { goals, bookings, statistics };
+  // Parse starting lineups from rosters
+  type EspnPlayer = { starter: boolean; athlete: { displayName: string; jersey: string; position?: { displayName: string } } };
+  type EspnRoster = { homeAway: string; formation?: string; roster?: EspnPlayer[] };
+  const rosters: EspnRoster[] = data.rosters ?? [];
+  function parseLineup(homeAway: 'home' | 'away'): ApiLineup | null {
+    const roster = rosters.find((r) => r.homeAway === homeAway);
+    if (!roster) return null;
+    const starters = (roster.roster ?? [])
+      .filter((p) => p.starter)
+      .map((p) => ({
+        name: p.athlete.displayName,
+        jersey: parseInt(p.athlete.jersey, 10) || null,
+        position: p.athlete.position?.displayName ?? null,
+      }));
+    if (starters.length === 0) return null;
+    return { formation: roster.formation ?? null, starters };
+  }
+  const homeLineup = parseLineup('home');
+  const awayLineup = parseLineup('away');
+  const lineups: [ApiLineup, ApiLineup] | null =
+    homeLineup && awayLineup ? [homeLineup, awayLineup] : null;
+
+  // Parse venue and attendance
+  const gameInfo = data.gameInfo ?? {};
+  const venueParts = [gameInfo.venue?.fullName, gameInfo.venue?.address?.city].filter(Boolean);
+  const venue = venueParts.length > 0 ? venueParts.join(', ') : null;
+  const attendance: number | null = typeof gameInfo.attendance === 'number' ? gameInfo.attendance : null;
+
+  return { goals, bookings, statistics, lineups, venue, attendance };
 }
 
 export interface ApiStandingEntry {
