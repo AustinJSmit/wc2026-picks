@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import LivePoller from './live-poller';
+import CollapsibleSection from './collapsible-section';
 import { getFifaRank } from '@/lib/fifa-rankings';
 
 function formatKickoff(date: Date, tz?: string | null) {
@@ -128,54 +129,56 @@ export default async function MatchesPage() {
       )}
 
       {upcoming.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold mb-3 text-primary">Upcoming — make your picks</h2>
-          <div className="space-y-2">
-            {upcoming.map(match => {
-              const pred = predByMatch[match.id];
-              return (
-                <Link key={match.id} href={`/match/${match.id}`} className="block">
-                  <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                    <CardContent className="py-3 flex items-center gap-3">
-                      <div className="flex-1">
-                        <div className="font-medium flex flex-wrap items-baseline gap-x-1">
-                          {match.homeTeamCrest && <img src={match.homeTeamCrest} alt="" className="h-4 w-4 object-contain inline-block" />}
-                          {match.homeTeam}
-                          <span className="text-xs text-muted-foreground font-normal">#{getFifaRank(match.homeTeam) ?? '–'}</span>
-                          <span className="text-muted-foreground text-sm font-normal">vs</span>
-                          {match.awayTeamCrest && <img src={match.awayTeamCrest} alt="" className="h-4 w-4 object-contain inline-block" />}
-                          {match.awayTeam}
-                          <span className="text-xs text-muted-foreground font-normal">#{getFifaRank(match.awayTeam) ?? '–'}</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">{formatKickoff(new Date(match.kickoffAt), user.timezone)}</div>
+        <CollapsibleSection
+          title={<span className="text-primary">Upcoming — make your picks</span>}
+          count={upcoming.length}
+          defaultOpen={true}
+        >
+          {upcoming.map(match => {
+            const pred = predByMatch[match.id];
+            return (
+              <Link key={match.id} href={`/match/${match.id}`} className="block">
+                <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                  <CardContent className="py-3 flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="font-medium flex flex-wrap items-baseline gap-x-1">
+                        {match.homeTeamCrest && <img src={match.homeTeamCrest} alt="" className="h-4 w-4 object-contain inline-block" />}
+                        {match.homeTeam}
+                        <span className="text-xs text-muted-foreground font-normal">#{getFifaRank(match.homeTeam) ?? '–'}</span>
+                        <span className="text-muted-foreground text-sm font-normal">vs</span>
+                        {match.awayTeamCrest && <img src={match.awayTeamCrest} alt="" className="h-4 w-4 object-contain inline-block" />}
+                        {match.awayTeam}
+                        <span className="text-xs text-muted-foreground font-normal">#{getFifaRank(match.awayTeam) ?? '–'}</span>
                       </div>
-                      {pred ? (
-                        <Badge variant="secondary" className="shrink-0">
-                          {pred.predHome}–{pred.predAway} ✓
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="shrink-0 border-primary text-primary">
-                          Pick →
-                        </Badge>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
+                      <div className="text-xs text-muted-foreground mt-0.5">{formatKickoff(new Date(match.kickoffAt), user.timezone)}</div>
+                    </div>
+                    {pred ? (
+                      <Badge variant="secondary" className="shrink-0">
+                        {pred.predHome}–{pred.predAway} ✓
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="shrink-0 border-primary text-primary">
+                        Pick →
+                      </Badge>
+                    )}
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
+        </CollapsibleSection>
       )}
 
       {past.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold mb-3 text-muted-foreground">Past matches</h2>
-          <div className="space-y-2">
-            {past.map(match => (
-              <MatchRow key={match.id} match={match} pred={predByMatch[match.id]} tz={user.timezone} />
-            ))}
-          </div>
-        </section>
+        <CollapsibleSection
+          title={<span className="text-muted-foreground">Past matches</span>}
+          count={past.length}
+          defaultOpen={false}
+        >
+          {past.map(match => (
+            <MatchRow key={match.id} match={match} pred={predByMatch[match.id]} tz={user.timezone} />
+          ))}
+        </CollapsibleSection>
       )}
     </div>
   );

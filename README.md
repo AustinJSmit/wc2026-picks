@@ -1,15 +1,17 @@
 # WC2026 Picks
 
-A World Cup 2026 prediction game. Players create accounts, predict match scores before kickoff, and earn points automatically when results come in. Leaderboard persists through the whole tournament.
+A World Cup 2026 prediction game. Players create accounts, predict match scores before kickoff, and earn points automatically when results come in.
 
 **Scoring:**
 - +1 point — correct winner (or draw)
 - +1 point — exact correct scoreline
-- Max 2 points per match
+- Max 2 points per match · 104 matches total
+
+**Live at:** [wc2026-picks-beta.vercel.app](https://wc2026-picks-beta.vercel.app)
 
 ---
 
-## Deploy in ~10 minutes (free forever)
+## Deploy in ~5 minutes (free forever)
 
 ### 1. Set up the database (Neon)
 
@@ -17,13 +19,7 @@ A World Cup 2026 prediction game. Players create accounts, predict match scores 
 2. Create a new project
 3. Copy the **Connection string** from the dashboard (looks like `postgresql://user:pass@host/db?sslmode=require`)
 
-### 2. Get a football data API key (API-Sports)
-
-1. Sign up for free at [api-sports.io](https://api-sports.io)
-2. Go to your dashboard → click your profile/account icon → copy your **API key**
-3. The free tier gives 100 requests/day — plenty for a prediction game
-
-### 3. Deploy to Vercel
+### 2. Deploy to Vercel
 
 1. Fork this repo to your GitHub account
 2. Go to [vercel.com](https://vercel.com) → **Add New Project** → import your fork
@@ -33,23 +29,23 @@ A World Cup 2026 prediction game. Players create accounts, predict match scores 
 |---|---|
 | `DATABASE_URL` | Your Neon connection string |
 | `SESSION_SECRET` | 32+ random characters (generate: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`) |
-| `API_FOOTBALL_KEY` | Your api-sports.io API key |
-| `ADMIN_EMAIL` | Your email (grants access to admin endpoints) |
 
 4. Click **Deploy**
 
-### 4. Set up the database schema
+No football data API key required — match data is fetched from the ESPN public API.
 
-After first deploy, run this once from your local machine:
+### 3. Set up the database schema
+
+After first deploy, run once from your local machine:
 
 ```bash
 npm install
 DATABASE_URL="your-neon-connection-string" npm run db:push
 ```
 
-### 5. Load the match schedule
+### 4. Load the match schedule
 
-Log in to the app, go to **Matches**, and click **Sync results**. This loads all World Cup 2026 matches. Hit Sync a second time to backfill goal scorer and booking data for finished matches.
+Visit `/matches` after logging in. The page automatically syncs from ESPN on every load — all 104 World Cup 2026 matches (group stage + full knockout bracket) will appear within a few seconds.
 
 ---
 
@@ -57,11 +53,11 @@ Log in to the app, go to **Matches**, and click **Sync results**. This loads all
 
 ```bash
 cp .env.example .env.local
-# fill in your values in .env.local
+# fill in DATABASE_URL and SESSION_SECRET in .env.local
 
 npm install
-npm run db:push        # create tables in Neon
-npm run dev            # start at localhost:3000
+npm run db:push   # create tables in Neon
+npm run dev       # start at localhost:3000
 ```
 
 ---
@@ -69,36 +65,44 @@ npm run dev            # start at localhost:3000
 ## Features
 
 - **Email + password accounts** with optional demographic profile (age, gender, country, favorite team)
-- **Timezone settings** — each user picks their timezone; kickoff times display locally across the app. Auto-detected from browser on signup
-- **Leaderboard** — live standings across all players, visible to anyone
-- **Match schedule** — upcoming (predict) and past (results + your points)
-- **Match events + statistics** — finished matches show goal scorers, assists, bookings (yellow/red cards with player + minute), and match statistics (possession, shots, fouls, corners)
-- **Predictions lock at kickoff** — enforced server-side, not just in the UI
-- **Auto-scoring** — hit Sync after matches finish; points award automatically
-- **Data export** — admin CSV download at `/api/export` with all players, demographics, and scores
+- **Timezone settings** — each user picks their timezone; kickoff times display locally everywhere
+- **Match list** — live matches at top with pulsing indicator; upcoming (collapsible, make picks); past results (collapsible); all auto-sync from ESPN on page load
+- **Match detail** — scoreline, goal scorers with minute + type (penalty/OG), team statistics, lineup pitch visualization, group standings, and for knockout matches: each team's tournament history
+- **Predictions lock at kickoff** — enforced server-side; friends' picks become visible after kickoff
+- **Friends' picks** — after kickoff, see every player's prediction with team crests on the match page
+- **Knockout bracket** (`/bracket`) — full 32-match bracket with connector lines, prediction badges, and Finals column centered between the Semifinals
+- **Leaderboard** (`/leaderboard`) — podium top-3, full table with correct result %, exact score count
+- **Auto-scoring** — points award automatically when matches sync after full-time
+- **Dark mode** — follows system default; toggle in nav (System / Light / Dark); FOUC-free
+- **Live polling** — matches page syncs every time it loads; live matches refresh every 60 seconds automatically
+- **Lineup pitch** — portrait pitch view with goal-net visuals at each end, player dots sized by formation row
+
+---
+
+## Data source
+
+All match data comes from the **ESPN unofficial API** (no key required, no rate limits):
+
+| Data | Endpoint |
+|---|---|
+| Fixtures + scores + status | `/scoreboard?dates=202606&limit=100` (June) + July |
+| Goal scorers, cards, stats, lineups, venue | `/summary?event={espnId}` |
+| Group standings | `/standings` |
+
+Goal event types handled: `goal`, `goal---header`, `goal---volley`, `penalty---scored`, `own-goal`
 
 ---
 
 ## Admin endpoints
 
-All admin endpoints require you to be logged in with your `ADMIN_EMAIL` account.
+These endpoints work for any logged-in user with server access (no special role required — designed for the app owner).
 
 | Endpoint | Method | Description |
 |---|---|---|
+| `/api/matches/sync` | POST | Sync match schedule + scores from ESPN; backfills goal/stat/lineup data for up to 10 recently finished or live matches per call |
 | `/api/export` | GET | Download CSV of all players, demographics, and total points |
-| `/api/admin/reset` | POST | Delete all matches and predictions — use before switching data sources or resetting for a new tournament |
-| `/api/admin/clear-events` | POST | Clear goals/bookings/statistics for all finished matches without touching predictions or match records — use to force a clean re-sync of event data |
-| `/api/matches/sync` | POST | Sync match schedule and results from API-Sports; backfills goal/booking data for up to 3 recently finished matches per call |
-
----
-
-## Sync strategy
-
-Each sync uses:
-- 1 API-Sports request for the full match list (scores + status)
-- For recently finished matches missing events: up to 4 ESPN lookups (scoreboard by date → match summary). ESPN has no rate limits and requires no API key.
-
-Hit Sync once after each match finishes to keep data fresh. The sync button shows a diagnostic line confirming whether event data was found.
+| `/api/admin/reset` | POST | Delete all matches and predictions |
+| `/api/admin/clear-events` | POST | Clear goals/bookings/stats for all matches without touching predictions |
 
 ---
 
@@ -107,6 +111,6 @@ Hit Sync once after each match finishes to keep data fresh. The sync button show
 - **Framework** — Next.js 16 (App Router, Turbopack)
 - **Database** — Neon Postgres via `@neondatabase/serverless` + Drizzle ORM
 - **Auth** — bcryptjs + iron-session (cookie-based, 30-day sessions)
-- **Football data** — API-Sports (fixtures + standings) + ESPN unofficial API (match events + statistics)
-- **UI** — Tailwind CSS + shadcn/ui (@base-ui/react)
-- **Hosting** — Vercel (free) + Neon (free, no pausing)
+- **Football data** — ESPN unofficial API (no key required)
+- **UI** — Tailwind CSS + shadcn/ui (@base-ui/react) + lucide-react
+- **Hosting** — Vercel (free tier) + Neon (free tier, no pausing)

@@ -195,8 +195,17 @@ function rowsFromFormation(formation: string | null, starters: ApiLineupPlayer[]
   return rows;
 }
 
+function GoalNet({ position }: { position: 'top' | 'bottom' }) {
+  return (
+    <div className="flex justify-center py-1.5">
+      <div className={`w-20 h-4 border-2 border-white/60 bg-white/5 ${
+        position === 'top' ? 'border-b-0 rounded-t-sm' : 'border-t-0 rounded-b-sm'
+      }`} />
+    </div>
+  );
+}
+
 function PitchHalf({
-  team,
   lineup,
   flipped,
 }: {
@@ -207,19 +216,19 @@ function PitchHalf({
   const rows = rowsFromFormation(lineup.formation, lineup.starters);
 
   return (
-    <div className={`flex ${flipped ? 'flex-col-reverse' : 'flex-col'} gap-3 py-3`}>
+    <div className={`flex ${flipped ? 'flex-col-reverse' : 'flex-col'} gap-2 py-2`}>
       {rows.map((row, ri) => (
         <div key={ri} className="flex justify-around gap-1">
           {row.map((p, pi) => (
-            <div key={pi} className="flex flex-col items-center gap-0.5 min-w-0 max-w-[60px]">
-              <div className="h-7 w-7 rounded-full bg-white/20 border border-white/40 flex items-center justify-center text-[10px] font-bold text-white">
+            <div key={pi} className="flex flex-col items-center min-w-0 max-w-[52px]">
+              <div className="h-5 w-5 rounded-full bg-white/20 border border-white/40 flex items-center justify-center text-[9px] font-bold text-white">
                 {p.jersey ?? ''}
               </div>
-              <span className="text-[9px] text-white text-center leading-tight truncate w-full text-center">
+              <span className="text-[8px] text-white text-center leading-tight truncate w-full text-center mt-0.5">
                 {p.name.split(' ').slice(-1)[0]}
               </span>
               {p.position && (
-                <span className="text-[8px] text-white/60 text-center leading-none">
+                <span className="text-[7px] text-white/60 text-center leading-none">
                   {p.position.slice(0, 3).toUpperCase()}
                 </span>
               )}
@@ -243,14 +252,10 @@ function LineupsCard({ homeTeam, awayTeam, lineups }: {
     <Card>
       <CardHeader className="pb-1">
         <CardTitle className="text-base">Line-ups</CardTitle>
-        <div className="flex justify-between text-xs text-muted-foreground mt-1">
-          <span>{homeTeam}{home.formation ? ` · ${home.formation}` : ''}</span>
-          <span>{awayTeam}{away.formation ? ` · ${away.formation}` : ''}</span>
-        </div>
       </CardHeader>
       <CardContent className={hasPitch ? 'p-0' : undefined}>
         {hasPitch ? (
-          /* Pitch visualization */
+          /* Pitch visualization — portrait layout, away at top, home at bottom */
           <div
             className="relative mx-0 rounded-b-lg overflow-hidden"
             style={{ background: 'linear-gradient(to bottom, #166534, #15803d)' }}
@@ -260,20 +265,22 @@ function LineupsCard({ homeTeam, awayTeam, lineups }: {
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-16 w-16 rounded-full border border-white/20" />
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full bg-white/30" />
 
-            <div className="relative grid grid-cols-2 divide-x divide-white/10 min-h-[320px]">
-              {/* Home half (GK at bottom) */}
-              <div className="flex flex-col">
-                <div className="text-[9px] text-white/60 text-center pt-2 pb-0 font-semibold uppercase tracking-wider">
-                  {homeTeam}
+            <div className="relative flex flex-col min-h-[560px]">
+              {/* Away half — top of pitch, GK at top, attackers toward center */}
+              <div className="flex-1 flex flex-col border-b border-white/10">
+                <GoalNet position="top" />
+                <div className="text-[9px] text-white/60 text-center font-semibold uppercase tracking-wider pb-0.5">
+                  {awayTeam}{away.formation ? ` · ${away.formation}` : ''}
                 </div>
-                <PitchHalf team={homeTeam} lineup={home} flipped={true} />
-              </div>
-              {/* Away half (GK at top) */}
-              <div className="flex flex-col">
                 <PitchHalf team={awayTeam} lineup={away} flipped={false} />
-                <div className="text-[9px] text-white/60 text-center pb-2 pt-0 font-semibold uppercase tracking-wider">
-                  {awayTeam}
+              </div>
+              {/* Home half — bottom of pitch, attackers toward center, GK at bottom */}
+              <div className="flex-1 flex flex-col">
+                <PitchHalf team={homeTeam} lineup={home} flipped={true} />
+                <div className="text-[9px] text-white/60 text-center font-semibold uppercase tracking-wider pt-0.5">
+                  {homeTeam}{home.formation ? ` · ${home.formation}` : ''}
                 </div>
+                <GoalNet position="bottom" />
               </div>
             </div>
           </div>
