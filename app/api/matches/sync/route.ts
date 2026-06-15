@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { matches, predictions } from '@/db/schema';
-import { eq, isNull, desc, and } from 'drizzle-orm';
-import { fetchWCMatches, fetchMatchDetail } from '@/lib/football-api';
+import { eq, isNull, desc, and, or } from 'drizzle-orm';
+import { fetchWCMatches, fetchMatchDetail, fetchMatchStatistics } from '@/lib/football-api';
 import type { ApiMatch } from '@/lib/football-api';
 import { calculatePoints } from '@/lib/scoring';
 
@@ -84,18 +84,25 @@ export async function POST() {
     const needsDetail = await db
       .select({ id: matches.id, apiId: matches.apiId })
       .from(matches)
-      .where(and(eq(matches.status, 'FINISHED'), isNull(matches.goals)))
+      .where(and(
+        eq(matches.status, 'FINISHED'),
+        or(isNull(matches.goals), isNull(matches.statistics)),
+      ))
       .orderBy(desc(matches.kickoffAt))
       .limit(3);
 
     for (const match of needsDetail) {
       if (!match.apiId) continue;
       try {
-        const detail = await fetchMatchDetail(match.apiId);
+        const [detail, stats] = await Promise.all([
+          fetchMatchDetail(match.apiId),
+          fetchMatchStatistics(match.apiId),
+        ]);
         await db.update(matches)
           .set({
             goals: detail.goals.length > 0 ? detail.goals : null,
             bookings: detail.bookings.length > 0 ? detail.bookings : null,
+            statistics: stats ?? null,
           })
           .where(eq(matches.id, match.id));
         detailResults.push({ apiId: match.apiId, status: 'ok', goalsFound: detail.goals.length });

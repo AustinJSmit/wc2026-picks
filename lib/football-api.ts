@@ -28,6 +28,21 @@ export interface ApiBooking {
   card: 'YELLOW_CARD' | 'RED_CARD';
 }
 
+export interface ApiTeamStats {
+  team: { name: string };
+  possession: string | null;
+  shotsOnGoal: number | null;
+  totalShots: number | null;
+  corners: number | null;
+  fouls: number | null;
+  offsides: number | null;
+  yellowCards: number | null;
+  redCards: number | null;
+  saves: number | null;
+  totalPasses: number | null;
+  passAccuracy: string | null;
+}
+
 export interface ApiMatch {
   id: number;
   homeTeam: { name: string; crest: string };
@@ -93,6 +108,40 @@ export async function fetchMatchDetail(apiId: string): Promise<{ goals: ApiGoal[
     }));
 
   return { goals, bookings };
+}
+
+export async function fetchMatchStatistics(apiId: string): Promise<[ApiTeamStats, ApiTeamStats] | null> {
+  const res = await fetch(`${BASE}/fixtures/statistics?fixture=${apiId}`, {
+    headers: headers(),
+    next: { revalidate: 0 },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const teams: Array<{ team: { name: string }; statistics: Array<{ type: string; value: string | number | null }> }> =
+    data.response ?? [];
+  if (teams.length < 2) return null;
+
+  const extract = (raw: Array<{ type: string; value: string | number | null }>) => {
+    const get = (type: string) => raw.find(s => s.type === type)?.value ?? null;
+    return {
+      possession: get('Ball Possession') as string | null,
+      shotsOnGoal: get('Shots on Goal') as number | null,
+      totalShots: get('Total Shots') as number | null,
+      corners: get('Corner Kicks') as number | null,
+      fouls: get('Fouls') as number | null,
+      offsides: get('Offsides') as number | null,
+      yellowCards: get('Yellow Cards') as number | null,
+      redCards: get('Red Cards') as number | null,
+      saves: get('Goalkeeper Saves') as number | null,
+      totalPasses: get('Total passes') as number | null,
+      passAccuracy: get('Passes %') as string | null,
+    };
+  };
+
+  return [
+    { team: teams[0].team, ...extract(teams[0].statistics) },
+    { team: teams[1].team, ...extract(teams[1].statistics) },
+  ];
 }
 
 export async function fetchWCMatches(): Promise<ApiMatch[]> {

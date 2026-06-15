@@ -5,6 +5,8 @@ import type { ApiGoal, ApiBooking } from '@/lib/football-api';
 interface Props {
   homeTeam: string;
   awayTeam: string;
+  homeCrest?: string | null;
+  awayCrest?: string | null;
   goals: ApiGoal[] | null;
   bookings: ApiBooking[] | null;
 }
@@ -17,7 +19,7 @@ function formatMinute(minute: number, injuryTime?: number | null) {
   return injuryTime ? `${minute}+${injuryTime}'` : `${minute}'`;
 }
 
-export default function MatchEvents({ homeTeam, awayTeam, goals, bookings }: Props) {
+export default function MatchEvents({ homeTeam, awayTeam, homeCrest, awayCrest, goals, bookings }: Props) {
   if (!goals && !bookings) return null;
 
   const events: Event[] = [
@@ -40,7 +42,11 @@ export default function MatchEvents({ homeTeam, awayTeam, goals, bookings }: Pro
         <ul className="space-y-2">
           {events.map((ev, i) => {
             const isHome = ev.team === homeTeam;
-            const sideBadge = (
+            const crestSrc = isHome ? homeCrest : awayCrest;
+            const sideBadge = crestSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={crestSrc} alt={isHome ? homeTeam : awayTeam} className="h-4 w-4 object-contain shrink-0" />
+            ) : (
               <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 shrink-0">
                 {isHome ? 'H' : 'A'}
               </Badge>

@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import PredictionForm from './prediction-form';
 import MatchEvents from '@/components/match-events';
 import { getFifaRank } from '@/lib/fifa-rankings';
-import type { ApiGoal, ApiBooking } from '@/lib/football-api';
+import type { ApiGoal, ApiBooking, ApiTeamStats } from '@/lib/football-api';
 
 function formatKickoff(date: Date, tz?: string | null) {
   return new Intl.DateTimeFormat('en-US', {
@@ -28,16 +28,16 @@ function MatchStats({ homeTeam, awayTeam, goals, bookings }: {
 
   const g = goals ?? [];
   const b = bookings ?? [];
+  const norm = (s: string) => s.trim().toLowerCase();
 
-  const homeGoals = g.filter(x => x.team.name === homeTeam);
-  const awayGoals = g.filter(x => x.team.name === awayTeam);
-  const homeYellow = b.filter(x => x.team.name === homeTeam && x.card === 'YELLOW_CARD').length;
-  const awayYellow = b.filter(x => x.team.name === awayTeam && x.card === 'YELLOW_CARD').length;
-  const homeRed = b.filter(x => x.team.name === homeTeam && x.card === 'RED_CARD').length;
-  const awayRed = b.filter(x => x.team.name === awayTeam && x.card === 'RED_CARD').length;
+  const homeGoals = g.filter(x => norm(x.team.name) === norm(homeTeam));
+  const awayGoals = g.filter(x => norm(x.team.name) === norm(awayTeam));
+  const homeBookings = b.filter(x => norm(x.team.name) === norm(homeTeam));
+  const awayBookings = b.filter(x => norm(x.team.name) === norm(awayTeam));
+  const goalsMatched = homeGoals.length + awayGoals.length > 0;
 
-  const scorerList = (goals: ApiGoal[]) =>
-    goals.map(g => `${g.scorer.name} ${g.minute}'${g.injuryTime ? `+${g.injuryTime}` : ''}${g.type === 'OWN_GOAL' ? ' (OG)' : g.type === 'PENALTY' ? ' (P)' : ''}`);
+  const scorerLine = (goal: ApiGoal) =>
+    `${goal.scorer.name} ${goal.minute}'${goal.injuryTime ? `+${goal.injuryTime}` : ''}${goal.type === 'OWN_GOAL' ? ' (OG)' : goal.type === 'PENALTY' ? ' (P)' : ''}`;
 
   return (
     <Card>
@@ -46,27 +46,84 @@ function MatchStats({ homeTeam, awayTeam, goals, bookings }: {
       </CardHeader>
       <CardContent className="space-y-3">
         {g.length > 0 && (
-          <div className="grid grid-cols-2 gap-2 text-sm">
+          goalsMatched ? (
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="space-y-0.5">
+                {homeGoals.map((goal, i) => <p key={i} className="text-xs">⚽ {scorerLine(goal)}</p>)}
+              </div>
+              <div className="space-y-0.5 text-right">
+                {awayGoals.map((goal, i) => <p key={i} className="text-xs">⚽ {scorerLine(goal)}</p>)}
+              </div>
+            </div>
+          ) : (
             <div className="space-y-0.5">
-              {scorerList(homeGoals).map((s, i) => <p key={i} className="text-xs">⚽ {s}</p>)}
+              {[...g].sort((a, b) => a.minute - b.minute).map((goal, i) => (
+                <p key={i} className="text-xs">⚽ {scorerLine(goal)} ({goal.team.name})</p>
+              ))}
+            </div>
+          )
+        )}
+        {b.length > 0 && (
+          <div className="grid grid-cols-2 gap-2 text-sm border-t pt-2">
+            <div className="space-y-0.5">
+              {homeBookings.map((bk, i) => (
+                <p key={i} className="text-xs">
+                  {bk.card === 'RED_CARD' ? '🟥' : '🟨'} {bk.player.name} {bk.minute}&apos;
+                </p>
+              ))}
             </div>
             <div className="space-y-0.5 text-right">
-              {scorerList(awayGoals).map((s, i) => <p key={i} className="text-xs">⚽ {s}</p>)}
+              {awayBookings.map((bk, i) => (
+                <p key={i} className="text-xs">
+                  {bk.card === 'RED_CARD' ? '🟥' : '🟨'} {bk.player.name} {bk.minute}&apos;
+                </p>
+              ))}
             </div>
           </div>
         )}
-        {(homeYellow > 0 || awayYellow > 0) && (
-          <div className="grid grid-cols-2 gap-2 text-sm border-t pt-2">
-            <span className="text-xs">🟨 {homeYellow}</span>
-            <span className="text-xs text-right">🟨 {awayYellow}</span>
-          </div>
-        )}
-        {(homeRed > 0 || awayRed > 0) && (
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <span className="text-xs">🟥 {homeRed}</span>
-            <span className="text-xs text-right">🟥 {awayRed}</span>
-          </div>
-        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MatchStatisticsCard({ homeTeam, awayTeam, statistics }: {
+  homeTeam: string; awayTeam: string;
+  statistics: [ApiTeamStats, ApiTeamStats] | null;
+}) {
+  if (!statistics) return null;
+  const norm = (s: string) => s.trim().toLowerCase();
+  const home = statistics.find(s => norm(s.team.name) === norm(homeTeam)) ?? statistics[0];
+  const away = statistics.find(s => norm(s.team.name) !== norm(homeTeam)) ?? statistics[1];
+
+  const rows = [
+    { label: 'Possession', h: home.possession, a: away.possession },
+    { label: 'Shots', h: home.totalShots, a: away.totalShots },
+    { label: 'Shots on Target', h: home.shotsOnGoal, a: away.shotsOnGoal },
+    { label: 'Saves', h: home.saves, a: away.saves },
+    { label: 'Corners', h: home.corners, a: away.corners },
+    { label: 'Fouls', h: home.fouls, a: away.fouls },
+    { label: 'Offsides', h: home.offsides, a: away.offsides },
+    { label: 'Passes', h: home.totalPasses, a: away.totalPasses },
+    { label: 'Pass Accuracy', h: home.passAccuracy, a: away.passAccuracy },
+  ].filter(r => r.h != null || r.a != null);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Match Statistics</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-1.5">
+          {rows.map(row => (
+            <div key={row.label} className="grid grid-cols-3 items-center text-sm">
+              <span className="text-right pr-3 font-mono tabular-nums">{row.h ?? '—'}</span>
+              <span className="text-center text-xs text-muted-foreground">{row.label}</span>
+              <span className="pl-3 font-mono tabular-nums">{row.a ?? '—'}</span>
+            </div>
+          ))}
+        </div>
       </CardContent>
     </Card>
   );
@@ -193,8 +250,18 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         <MatchEvents
           homeTeam={match.homeTeam}
           awayTeam={match.awayTeam}
+          homeCrest={match.homeTeamCrest ?? null}
+          awayCrest={match.awayTeamCrest ?? null}
           goals={match.goals as ApiGoal[] | null}
           bookings={match.bookings as ApiBooking[] | null}
+        />
+      )}
+
+      {isFinished && match.statistics != null && (
+        <MatchStatisticsCard
+          homeTeam={match.homeTeam}
+          awayTeam={match.awayTeam}
+          statistics={match.statistics as [ApiTeamStats, ApiTeamStats]}
         />
       )}
 

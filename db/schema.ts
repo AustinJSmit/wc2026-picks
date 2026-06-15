@@ -27,6 +27,7 @@ export const matches = pgTable('matches', {
   awayTeamCrest: text('away_team_crest'),
   goals: jsonb('goals'),
   bookings: jsonb('bookings'),
+  statistics: jsonb('statistics'),
 });
 
 export const predictions = pgTable('predictions', {
