@@ -78,6 +78,8 @@ export async function POST() {
 
   // Back-fill goals/bookings for recently finished matches that are still missing them
   let detailsFilled = 0;
+  const detailResults: { apiId: string; status: 'ok' | 'error'; goalsFound: number; error?: string }[] = [];
+
   try {
     const needsDetail = await db
       .select({ id: matches.id, apiId: matches.apiId })
@@ -96,14 +98,26 @@ export async function POST() {
             bookings: detail.bookings.length > 0 ? detail.bookings : null,
           })
           .where(eq(matches.id, match.id));
-        detailsFilled++;
-      } catch {
-        // skip on rate-limit or error; next sync will retry
+        detailResults.push({ apiId: match.apiId, status: 'ok', goalsFound: detail.goals.length });
+        if (detail.goals.length > 0) detailsFilled++;
+      } catch (err) {
+        detailResults.push({ apiId: match.apiId, status: 'error', goalsFound: 0, error: String(err) });
       }
     }
   } catch {
     // non-fatal; main sync already succeeded
   }
 
-  return NextResponse.json({ ok: true, matchesSynced: synced, pointsAwarded, failed, detailsFilled });
+  // Count how many finished matches got goals from the competition endpoint this sync
+  const goalsFromCompetitionEndpoint = apiMatches.filter(m => m.goals.length > 0 && m.status === 'FINISHED').length;
+
+  return NextResponse.json({
+    ok: true,
+    matchesSynced: synced,
+    pointsAwarded,
+    failed,
+    detailsFilled,
+    detailResults,
+    goalsFromCompetitionEndpoint,
+  });
 }

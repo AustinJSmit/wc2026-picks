@@ -47,7 +47,10 @@ export async function fetchMatchDetail(apiId: string): Promise<{ goals: ApiGoal[
     headers: headers(),
     next: { revalidate: 0 },
   });
-  if (!res.ok) throw new Error(`football-data.org error: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`HTTP ${res.status}: ${body.slice(0, 200)}`);
+  }
   const data = await res.json();
   return {
     goals: (data.goals ?? []) as ApiGoal[],
