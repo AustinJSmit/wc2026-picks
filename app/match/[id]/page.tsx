@@ -645,7 +645,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
       )}
 
       {/* ── Line-ups ─────────────────────────────────────────────── */}
-      {isFinished && (() => {
+      {(isFinished || isLive) && (() => {
         const lineupsData = match.lineups as [ApiLineup, ApiLineup] | null;
         if (!lineupsData) return null;
         return (
