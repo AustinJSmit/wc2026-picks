@@ -14,6 +14,9 @@ type BracketMatch = typeof matches.$inferSelect & {
 
 const MAIN_ROUNDS = ['Round of 32', 'Round of 16', 'Quarterfinal', 'Semifinal'];
 
+const CARD_HEIGHT = 75; // px — rendered MatchCard height (no prediction row)
+const HEADER_HEIGHT = 29; // px — round label + pb-1 border-b + mb-3 above card list
+
 function getRoundLabel(stage: string | null): string {
   if (!stage) return 'Knockout';
   return stage;
@@ -77,11 +80,18 @@ function MatchCard({ match }: { match: BracketMatch }) {
 
 // Draws bracket connector arms between adjacent round columns.
 // Each arm joins a pair of left-round cards pointing to one right-round card.
-function ConnectorColumn({ pairs }: { pairs: number }) {
+// offsetTop pushes the first arm's corner to the first card's vertical midpoint.
+// armHeight = CARD_HEIGHT + gap so each corner lands exactly on a card center.
+function ConnectorColumn({ pairs, armHeight, offsetTop }: {
+  pairs: number;
+  armHeight: number;
+  offsetTop: number;
+}) {
   return (
-    <div className="self-stretch flex flex-col pointer-events-none w-5 shrink-0">
+    <div className="flex flex-col pointer-events-none w-5 shrink-0"
+         style={{ paddingTop: `${offsetTop}px` }}>
       {Array.from({ length: pairs }).map((_, i) => (
-        <div key={i} className="flex-1 flex flex-col">
+        <div key={i} className="flex flex-col shrink-0" style={{ height: `${armHeight}px` }}>
           <div className="flex-1 border-r border-t border-zinc-300 dark:border-zinc-700" />
           <div className="flex-1 border-r border-b border-zinc-300 dark:border-zinc-700" />
         </div>
@@ -138,23 +148,22 @@ export default async function BracketPage() {
 
   // Gap and paddingTop per round so each round's cards align with the midpoint
   // of the pairs in the previous round (visually creates a funnel toward center).
-  const GAP: Record<string, string> = {
-    'Round of 32': '8px',
-    'Round of 16': '92px',
-    'Quarterfinal': '220px',
-    'Semifinal': '476px',
+  const GAP_PX: Record<string, number> = {
+    'Round of 32': 8,
+    'Round of 16': 92,
+    'Quarterfinal': 220,
+    'Semifinal': 476,
   };
-  const PADDING_TOP: Record<string, string> = {
-    'Round of 32': '0px',
-    'Round of 16': '50px',
-    'Quarterfinal': '164px',
-    'Semifinal': '392px',
+  const PADDING_TOP_PX: Record<string, number> = {
+    'Round of 32': 0,
+    'Round of 16': 50,
+    'Quarterfinal': 164,
+    'Semifinal': 392,
   };
 
   // Finals column paddingTop: centers the Final+3P block between the two SF cards.
-  // SF[0].center ≈ 437px, SF[1].center ≈ 1003px → midpoint ≈ 720px.
-  // Two-card block height ≈ 196px → top ≈ 720 - 98 = 622px.
-  const FINALS_PADDING_TOP = '622px';
+  // SF midpoint ≈ 734px → minus header(29) minus sub-label(16) minus half-card(37.5) ≈ 652px.
+  const FINALS_PADDING_TOP = '652px';
 
   return (
     <div className="max-w-[1100px] mx-auto">
@@ -177,8 +186,8 @@ export default async function BracketPage() {
                     {round}
                   </div>
                   <div className="flex flex-col" style={{
-                    gap: GAP[round] ?? '8px',
-                    paddingTop: PADDING_TOP[round] ?? '0px',
+                    gap: `${GAP_PX[round] ?? 8}px`,
+                    paddingTop: `${PADDING_TOP_PX[round] ?? 0}px`,
                   }}>
                     {roundMatches.map(match => (
                       <MatchCard key={match.id} match={match} />
@@ -187,11 +196,21 @@ export default async function BracketPage() {
                 </div>
 
                 {/* Connector column linking this round to the next */}
-                {!isLastMain && <ConnectorColumn pairs={pairs} />}
+                {!isLastMain && (
+                  <ConnectorColumn
+                    pairs={pairs}
+                    armHeight={CARD_HEIGHT + (GAP_PX[round] ?? 8)}
+                    offsetTop={HEADER_HEIGHT + (PADDING_TOP_PX[round] ?? 0) + CARD_HEIGHT / 2}
+                  />
+                )}
 
                 {/* Single connector arm from SF to the Finals column */}
                 {isLastMain && (finalMatch || thirdPlaceMatch) && (
-                  <ConnectorColumn pairs={1} />
+                  <ConnectorColumn
+                    pairs={1}
+                    armHeight={CARD_HEIGHT + (GAP_PX[round] ?? 8)}
+                    offsetTop={HEADER_HEIGHT + (PADDING_TOP_PX[round] ?? 0) + CARD_HEIGHT / 2}
+                  />
                 )}
               </div>
             );
