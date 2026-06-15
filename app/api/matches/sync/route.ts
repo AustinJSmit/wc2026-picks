@@ -105,10 +105,17 @@ export async function POST() {
         status: matches.status,
       })
       .from(matches)
-      .where(and(
-        or(eq(matches.status, 'FINISHED'), eq(matches.status, 'LIVE')),
-        or(isNull(matches.goals), isNull(matches.lineups))
-      ))
+      .where(
+        or(
+          // LIVE matches: always re-fetch so in-progress goals/cards stay current
+          eq(matches.status, 'LIVE'),
+          // FINISHED matches: only fetch if event data is still missing
+          and(
+            eq(matches.status, 'FINISHED'),
+            or(isNull(matches.goals), isNull(matches.lineups))
+          )
+        )
+      )
       .orderBy(desc(matches.kickoffAt))
       .limit(10);
 

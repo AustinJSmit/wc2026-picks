@@ -587,7 +587,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           return (
             <Card>
               <CardContent className="py-4 text-center text-sm text-muted-foreground">
-                Match events not available yet — hit <strong>Sync</strong> on the matches page to load them.
+                {isLive ? 'Events loading…' : 'Match events not yet available.'}
               </CardContent>
             </Card>
           );
@@ -596,7 +596,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           return (
             <Card>
               <CardContent className="py-4 text-center text-sm text-muted-foreground">
-                Match events temporarily unavailable — API data issue for this fixture.
+                {isLive ? 'Syncing latest events…' : 'Match events temporarily unavailable.'}
               </CardContent>
             </Card>
           );
