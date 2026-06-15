@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WC2026 Picks
 
-## Getting Started
+A World Cup 2026 prediction game. Players create accounts, predict match scores before kickoff, and earn points automatically when results come in. Leaderboard persists through the whole tournament.
 
-First, run the development server:
+**Scoring:**
+- +1 point — correct winner (or draw)
+- +1 point — exact correct scoreline
+- Max 2 points per match
+
+---
+
+## Deploy in ~10 minutes (free forever)
+
+### 1. Set up the database (Neon)
+
+1. Go to [neon.tech](https://neon.tech) → create a free account
+2. Create a new project
+3. Copy the **Connection string** from the dashboard (looks like `postgresql://user:pass@host/db?sslmode=require`)
+
+### 2. Get a football API key (football-data.org)
+
+1. Register at [football-data.org/client/register](https://www.football-data.org/client/register)
+2. Check your email for your free API key
+
+### 3. Deploy to Vercel
+
+1. Fork this repo to your GitHub account
+2. Go to [vercel.com](https://vercel.com) → **Add New Project** → import your fork
+3. In the **Environment Variables** section, add:
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | Your Neon connection string |
+| `SESSION_SECRET` | 32+ random characters (generate: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`) |
+| `FOOTBALL_API_KEY` | Your football-data.org key |
+| `ADMIN_EMAIL` | Your email (grants access to the data export) |
+
+4. Click **Deploy** — done!
+
+### 4. Set up the database schema
+
+After first deploy, run the migration once from your local machine:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+DATABASE_URL="your-neon-connection-string" npm run db:push
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 5. Load the match schedule
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Log in to the app, go to **Matches**, and click **🔄 Sync results**. This loads all World Cup 2026 matches from the football API.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Run locally
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+cp .env.example .env.local
+# fill in your values in .env.local
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+npm install
+npm run db:push        # create tables in Neon
+npm run dev            # start at localhost:3000
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Features
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Email + password accounts** with optional demographic profile (age, gender, country, favorite team)
+- **Leaderboard** — live standings across all players, visible to anyone
+- **Match schedule** — upcoming (predict) and past (results + your points)
+- **Predictions lock at kickoff** — enforced on the server, not just the UI
+- **Voice input** — say "two one" or "Japan 2 Netherlands 1" on Chrome/Safari mobile
+- **Auto-scoring** — hit Sync after matches finish; points award automatically
+- **Data export** — admin CSV download at `/api/export` with all players, demographics, and scores
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Data export
+
+Visit `/api/export` while logged in with your `ADMIN_EMAIL` account to download a CSV of all players with their demographic info and total points — useful for post-tournament analysis in Excel, Python, etc.

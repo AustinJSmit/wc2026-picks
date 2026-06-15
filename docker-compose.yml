@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - FOOTBALL_API_KEY=${FOOTBALL_API_KEY}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+    restart: unless-stopped
