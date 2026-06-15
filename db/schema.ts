@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, unique } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, integer, timestamp, unique, jsonb } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -9,6 +9,7 @@ export const users = pgTable('users', {
   gender: text('gender'),
   country: text('country'),
   favoriteTeam: text('favorite_team'),
+  timezone: text('timezone'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -21,6 +22,11 @@ export const matches = pgTable('matches', {
   status: text('status').notNull().default('SCHEDULED'), // SCHEDULED | LIVE | FINISHED
   homeScore: integer('home_score'),
   awayScore: integer('away_score'),
+  stage: text('stage'),
+  homeTeamCrest: text('home_team_crest'),
+  awayTeamCrest: text('away_team_crest'),
+  goals: jsonb('goals'),
+  bookings: jsonb('bookings'),
 });
 
 export const predictions = pgTable('predictions', {

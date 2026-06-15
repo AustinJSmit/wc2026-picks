@@ -11,14 +11,47 @@ function normalizeStatus(status: string): string {
   return 'SCHEDULED';
 }
 
+export interface ApiGoal {
+  minute: number;
+  injuryTime?: number | null;
+  type: 'REGULAR' | 'OWN_GOAL' | 'PENALTY';
+  team: { name: string };
+  scorer: { name: string };
+  assist?: { name: string | null } | null;
+}
+
+export interface ApiBooking {
+  minute: number;
+  team: { name: string };
+  player: { name: string };
+  card: 'YELLOW_CARD' | 'RED_CARD';
+}
+
 export interface ApiMatch {
   id: number;
-  homeTeam: { name: string };
-  awayTeam: { name: string };
+  homeTeam: { name: string; crest: string };
+  awayTeam: { name: string; crest: string };
   utcDate: string;
   status: string;
+  stage: string;
+  group: string | null;
   score: {
     fullTime: { home: number | null; away: number | null };
+  };
+  goals: ApiGoal[];
+  bookings: ApiBooking[];
+}
+
+export async function fetchMatchDetail(apiId: string): Promise<{ goals: ApiGoal[]; bookings: ApiBooking[] }> {
+  const res = await fetch(`${BASE}/matches/${apiId}`, {
+    headers: headers(),
+    next: { revalidate: 0 },
+  });
+  if (!res.ok) throw new Error(`football-data.org error: ${res.status}`);
+  const data = await res.json();
+  return {
+    goals: (data.goals ?? []) as ApiGoal[],
+    bookings: (data.bookings ?? []) as ApiBooking[],
   };
 }
 
@@ -36,5 +69,7 @@ export async function fetchWCMatches(): Promise<ApiMatch[]> {
   return (data.matches as ApiMatch[]).map(m => ({
     ...m,
     status: normalizeStatus(m.status),
+    goals: m.goals ?? [],
+    bookings: m.bookings ?? [],
   }));
 }

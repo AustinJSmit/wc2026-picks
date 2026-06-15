@@ -19,6 +19,9 @@ export default async function Nav() {
               <Link href="/matches" className="opacity-90 hover:opacity-100 transition-opacity">
                 Matches
               </Link>
+              <Link href="/settings" className="opacity-90 hover:opacity-100 transition-opacity">
+                Settings
+              </Link>
               <Link href="/profile" className="opacity-90 hover:opacity-100 transition-opacity">
                 {user.displayName}
               </Link>

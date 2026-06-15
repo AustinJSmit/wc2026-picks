@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
   session.userId = user.id;
   session.email = user.email;
   session.displayName = user.displayName;
+  session.timezone = user.timezone ?? undefined;
   await session.save();
 
   return NextResponse.json({ ok: true, displayName: user.displayName });

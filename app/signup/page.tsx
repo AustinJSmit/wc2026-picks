@@ -26,6 +26,7 @@ export default function SignupPage() {
         email: form.get('email'),
         password: form.get('password'),
         displayName: form.get('displayName'),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }),
     });
 

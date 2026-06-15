@@ -1,15 +1,26 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { matches, predictions } from '@/db/schema';
-import { eq, isNull } from 'drizzle-orm';
-import { fetchWCMatches } from '@/lib/football-api';
+import { eq, isNull, desc, and } from 'drizzle-orm';
+import { fetchWCMatches, fetchMatchDetail } from '@/lib/football-api';
+import type { ApiMatch } from '@/lib/football-api';
 import { calculatePoints } from '@/lib/scoring';
 
 export async function POST() {
+  let apiMatches: ApiMatch[];
   try {
-    const apiMatches = await fetchWCMatches();
+    apiMatches = await fetchWCMatches();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `API fetch failed: ${msg}` }, { status: 500 });
+  }
 
-    for (const m of apiMatches) {
+  let synced = 0;
+  let failed = 0;
+
+  for (const m of apiMatches) {
+    if (!m.homeTeam.name || !m.awayTeam.name) continue; // skip TBD knockout matches
+    try {
       const values = {
         apiId: String(m.id),
         homeTeam: m.homeTeam.name,
@@ -18,21 +29,30 @@ export async function POST() {
         status: m.status,
         homeScore: m.score.fullTime.home,
         awayScore: m.score.fullTime.away,
+        stage: m.stage ?? null,
+        homeTeamCrest: m.homeTeam.crest ?? null,
+        awayTeamCrest: m.awayTeam.crest ?? null,
+        goals: m.goals.length > 0 ? m.goals : null,
+        bookings: m.bookings.length > 0 ? m.bookings : null,
       };
 
       await db
         .insert(matches)
         .values(values)
         .onConflictDoUpdate({ target: matches.apiId, set: values });
-    }
 
-    // Award points for finished matches where predictions haven't been scored yet
+      synced++;
+    } catch {
+      failed++;
+    }
+  }
+
+  let pointsAwarded = 0;
+  try {
     const finishedMatches = await db
       .select()
       .from(matches)
       .where(eq(matches.status, 'FINISHED'));
-
-    let pointsAwarded = 0;
 
     for (const match of finishedMatches) {
       if (match.homeScore == null || match.awayScore == null) continue;
@@ -43,7 +63,7 @@ export async function POST() {
         .where(eq(predictions.matchId, match.id));
 
       for (const pred of unscoredPredictions) {
-        if (pred.points !== null) continue; // already scored
+        if (pred.points !== null) continue;
         const pts = calculatePoints(pred, match);
         if (pts !== null) {
           await db.update(predictions).set({ points: pts }).where(eq(predictions.id, pred.id));
@@ -51,10 +71,39 @@ export async function POST() {
         }
       }
     }
-
-    return NextResponse.json({ ok: true, matchesSynced: apiMatches.length, pointsAwarded });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Scoring failed: ${msg}`, matchesSynced: synced, failed }, { status: 500 });
   }
+
+  // Back-fill goals/bookings for recently finished matches that are still missing them
+  let detailsFilled = 0;
+  try {
+    const needsDetail = await db
+      .select({ id: matches.id, apiId: matches.apiId })
+      .from(matches)
+      .where(and(eq(matches.status, 'FINISHED'), isNull(matches.goals)))
+      .orderBy(desc(matches.kickoffAt))
+      .limit(3);
+
+    for (const match of needsDetail) {
+      if (!match.apiId) continue;
+      try {
+        const detail = await fetchMatchDetail(match.apiId);
+        await db.update(matches)
+          .set({
+            goals: detail.goals.length > 0 ? detail.goals : null,
+            bookings: detail.bookings.length > 0 ? detail.bookings : null,
+          })
+          .where(eq(matches.id, match.id));
+        detailsFilled++;
+      } catch {
+        // skip on rate-limit or error; next sync will retry
+      }
+    }
+  } catch {
+    // non-fatal; main sync already succeeded
+  }
+
+  return NextResponse.json({ ok: true, matchesSynced: synced, pointsAwarded, failed, detailsFilled });
 }

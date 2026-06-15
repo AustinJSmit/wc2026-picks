@@ -5,6 +5,7 @@ export interface SessionData {
   userId?: number;
   email?: string;
   displayName?: string;
+  timezone?: string;
 }
 
 export const sessionOptions = {

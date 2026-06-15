@@ -1,0 +1,73 @@
+// FIFA World Rankings as of May 2026 (pre-tournament, frozen for WC2026 duration).
+// Keys MUST match the team names returned by football-data.org API exactly.
+// After syncing, check your DB's home_team / away_team values and update keys to match.
+// Common differences: "Korea Republic" (not "South Korea"), "USA" or "United States" (verify).
+
+export const FIFA_RANKINGS: Record<string, number> = {
+  // Top seeds
+  'Argentina': 1,
+  'France': 2,
+  'Spain': 3,
+  'England': 4,
+  'Brazil': 5,
+  'Portugal': 6,
+  'Belgium': 7,
+  'Netherlands': 8,
+  'Germany': 9,
+  'Uruguay': 10,
+  'Colombia': 11,
+  'Italy': 12,
+  'United States': 13,
+  'Mexico': 14,
+  'Japan': 15,
+  'Croatia': 16,
+  'Morocco': 17,
+  'Senegal': 18,
+  'Denmark': 19,
+  'Switzerland': 20,
+  'Austria': 21,
+  'Ukraine': 22,
+  'Australia': 23,
+  'Korea Republic': 24,
+  'Ecuador': 25,
+  'Iran': 26,
+  'Serbia': 27,
+  'Hungary': 28,
+  'Wales': 29,
+  'Scotland': 30,
+  'Poland': 31,
+  'Czechia': 32,
+  'Romania': 33,
+  'Turkey': 34,
+  'Slovakia': 35,
+  'Canada': 36,
+  'Cameroon': 37,
+  'Nigeria': 38,
+  "Côte d'Ivoire": 39,
+  'Egypt': 40,
+  'Ghana': 41,
+  'South Africa': 42,
+  'Tunisia': 43,
+  'Algeria': 44,
+  'Paraguay': 45,
+  'Bolivia': 46,
+  'Venezuela': 47,
+  'Peru': 48,
+  'Chile': 49,
+  'Panama': 50,
+  'Costa Rica': 51,
+  'Honduras': 52,
+  'Jamaica': 53,
+  'New Zealand': 54,
+  'Saudi Arabia': 55,
+  'Iraq': 56,
+  'Qatar': 57,
+  'Uzbekistan': 58,
+  'Indonesia': 59,
+  'Guatemala': 60,
+  // Additional teams that may appear — update rankings from https://www.fifa.com/fifa-world-ranking
+};
+
+export function getFifaRank(teamName: string): number | null {
+  return FIFA_RANKINGS[teamName] ?? null;
+}

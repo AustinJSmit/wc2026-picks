@@ -9,11 +9,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import SyncButton from './sync-button';
+import { getFifaRank } from '@/lib/fifa-rankings';
 
-function formatKickoff(date: Date) {
+function formatKickoff(date: Date, tz?: string | null) {
   return new Intl.DateTimeFormat('en-US', {
     month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
     timeZoneName: 'short',
+    ...(tz ? { timeZone: tz } : {}),
   }).format(date);
 }
 
@@ -60,10 +62,16 @@ export default async function MatchesPage() {
                   <Card className="hover:shadow-md transition-shadow cursor-pointer">
                     <CardContent className="py-3 flex items-center gap-3">
                       <div className="flex-1">
-                        <div className="font-medium">
-                          {match.homeTeam} <span className="text-muted-foreground text-sm">vs</span> {match.awayTeam}
+                        <div className="font-medium flex flex-wrap items-baseline gap-x-1">
+                          {match.homeTeamCrest && <img src={match.homeTeamCrest} alt="" className="h-4 w-4 object-contain inline-block" />}
+                          {match.homeTeam}
+                          <span className="text-xs text-muted-foreground font-normal">#{getFifaRank(match.homeTeam) ?? '–'}</span>
+                          <span className="text-muted-foreground text-sm font-normal">vs</span>
+                          {match.awayTeamCrest && <img src={match.awayTeamCrest} alt="" className="h-4 w-4 object-contain inline-block" />}
+                          {match.awayTeam}
+                          <span className="text-xs text-muted-foreground font-normal">#{getFifaRank(match.awayTeam) ?? '–'}</span>
                         </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">{formatKickoff(new Date(match.kickoffAt))}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{formatKickoff(new Date(match.kickoffAt), user.timezone)}</div>
                       </div>
                       {pred ? (
                         <Badge variant="secondary" className="shrink-0">
@@ -91,11 +99,18 @@ export default async function MatchesPage() {
               const pred = predByMatch[match.id];
               const finished = match.status === 'FINISHED';
               return (
-                <Card key={match.id} className="opacity-80">
+                <Link key={match.id} href={`/match/${match.id}`} className="block">
+                <Card className="opacity-80 hover:shadow-md transition-shadow cursor-pointer">
                   <CardContent className="py-3 flex items-center gap-3">
                     <div className="flex-1">
-                      <div className="font-medium">
-                        {match.homeTeam} <span className="text-muted-foreground text-sm">vs</span> {match.awayTeam}
+                      <div className="font-medium flex flex-wrap items-baseline gap-x-1">
+                        {match.homeTeamCrest && <img src={match.homeTeamCrest} alt="" className="h-4 w-4 object-contain inline-block" />}
+                        {match.homeTeam}
+                        <span className="text-xs text-muted-foreground font-normal">#{getFifaRank(match.homeTeam) ?? '–'}</span>
+                        <span className="text-muted-foreground text-sm font-normal">vs</span>
+                        {match.awayTeamCrest && <img src={match.awayTeamCrest} alt="" className="h-4 w-4 object-contain inline-block" />}
+                        {match.awayTeam}
+                        <span className="text-xs text-muted-foreground font-normal">#{getFifaRank(match.awayTeam) ?? '–'}</span>
                       </div>
                       {finished && match.homeScore != null && (
                         <div className="text-sm font-bold text-foreground mt-0.5">
@@ -122,6 +137,7 @@ export default async function MatchesPage() {
                     </div>
                   </CardContent>
                 </Card>
+                </Link>
               );
             })}
           </div>

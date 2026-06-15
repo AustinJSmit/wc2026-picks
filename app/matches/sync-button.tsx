@@ -16,7 +16,8 @@ export default function SyncButton() {
     const data = await res.json();
     setLoading(false);
     if (res.ok) {
-      setStatus(`✓ ${data.matchesSynced} matches synced`);
+      const failNote = data.failed ? `, ${data.failed} failed` : '';
+      setStatus(`✓ ${data.matchesSynced} matches synced${failNote}`);
       router.refresh();
     } else {
       setStatus(`Error: ${data.error}`);

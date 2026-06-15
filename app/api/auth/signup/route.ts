@@ -10,6 +10,7 @@ const schema = z.object({
   email: z.email(),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   displayName: z.string().min(2, 'Display name must be at least 2 characters').max(30),
+  timezone: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
   }
 
-  const { email, password, displayName } = parsed.data;
+  const { email, password, displayName, timezone } = parsed.data;
 
   const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
   if (existing) {
@@ -27,12 +28,13 @@ export async function POST(req: NextRequest) {
   }
 
   const passwordHash = await hashPassword(password);
-  const [user] = await db.insert(users).values({ email, passwordHash, displayName }).returning();
+  const [user] = await db.insert(users).values({ email, passwordHash, displayName, timezone: timezone ?? null }).returning();
 
   const session = await getSession();
   session.userId = user.id;
   session.email = user.email;
   session.displayName = user.displayName;
+  session.timezone = user.timezone ?? undefined;
   await session.save();
 
   return NextResponse.json({ ok: true, displayName: user.displayName });

@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { parseSpeech } from '@/lib/speech';
 
 interface Props {
   matchId: number;
@@ -20,51 +19,6 @@ export default function PredictionForm({ matchId, homeTeam, awayTeam, existing }
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [listening, setListening] = useState(false);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-
-  function startListening() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setError('Voice input is not supported in this browser. Try Chrome.');
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 3;
-    recognitionRef.current = recognition;
-
-    recognition.onstart = () => setListening(true);
-    recognition.onend = () => setListening(false);
-
-    recognition.onresult = (event) => {
-      for (let i = 0; i < event.results[0].length; i++) {
-        const transcript = event.results[0][i].transcript;
-        const parsed = parseSpeech(transcript);
-        if (parsed) {
-          setHomeScore(String(parsed.home));
-          setAwayScore(String(parsed.away));
-          setError('');
-          return;
-        }
-      }
-      setError('Could not understand the score — try saying "2 1" or "two one"');
-    };
-
-    recognition.onerror = () => {
-      setListening(false);
-      setError('Voice recognition error — please type your prediction instead');
-    };
-
-    recognition.start();
-  }
-
-  function stopListening() {
-    recognitionRef.current?.stop();
-    setListening(false);
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -102,7 +56,7 @@ export default function PredictionForm({ matchId, homeTeam, awayTeam, existing }
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <p className="text-sm text-muted-foreground text-center">
-        Say or type your predicted score:
+        Enter your predicted score:
       </p>
 
       <div className="flex items-center gap-4 justify-center">
@@ -134,24 +88,6 @@ export default function PredictionForm({ matchId, homeTeam, awayTeam, existing }
           />
         </div>
       </div>
-
-      <div className="flex justify-center">
-        <Button
-          type="button"
-          variant={listening ? 'destructive' : 'outline'}
-          size="sm"
-          onClick={listening ? stopListening : startListening}
-          className="gap-2"
-        >
-          {listening ? '⏹ Stop listening' : '🎙 Dictate score'}
-        </Button>
-      </div>
-
-      {listening && (
-        <p className="text-center text-sm text-primary animate-pulse">
-          Listening… say the score, e.g. &quot;two one&quot;
-        </p>
-      )}
 
       {error && (
         <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md text-center">{error}</p>
