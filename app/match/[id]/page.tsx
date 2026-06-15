@@ -56,9 +56,27 @@ function StatsCard({ homeTeam, awayTeam, homeCrest, awayCrest, statistics }: {
   const toNum = (v: string | number | null | undefined) =>
     v == null ? null : parseFloat(String(v));
 
+  // Format a stat value for display. Possession: append %. Pass accuracy: ESPN
+  // stores as proportion 0–1 (e.g. 0.9 = 90%), so multiply by 100 and append %.
+  function fmt(label: string, v: string | number | null | undefined): string {
+    if (v == null) return '—';
+    if (label === 'Possession') {
+      const n = parseFloat(String(v));
+      return isNaN(n) ? String(v) : `${n.toFixed(1)}%`;
+    }
+    if (label === 'Pass accuracy') {
+      const n = parseFloat(String(v));
+      if (isNaN(n)) return String(v);
+      const pct = n <= 1 ? n * 100 : n;
+      return `${pct.toFixed(0)}%`;
+    }
+    return String(v);
+  }
+
   const statRows = (home && away) ? [
     { label: 'Shots', h: home.totalShots, a: away.totalShots },
     { label: 'Shots on target', h: home.shotsOnGoal, a: away.shotsOnGoal },
+    { label: 'Saves', h: home.saves, a: away.saves },
     { label: 'Possession', h: home.possession, a: away.possession },
     { label: 'Passes', h: home.totalPasses, a: away.totalPasses },
     { label: 'Pass accuracy', h: home.passAccuracy, a: away.passAccuracy },
@@ -95,20 +113,20 @@ function StatsCard({ homeTeam, awayTeam, homeCrest, awayCrest, statistics }: {
               <div className="flex justify-start">
                 {homeHigher ? (
                   <span className="bg-green-600 text-white text-xs font-bold rounded px-1.5 py-0.5 tabular-nums">
-                    {row.h}
+                    {fmt(row.label, row.h)}
                   </span>
                 ) : (
-                  <span className="tabular-nums">{row.h ?? '—'}</span>
+                  <span className="tabular-nums">{fmt(row.label, row.h)}</span>
                 )}
               </div>
               <span className="text-center text-xs text-muted-foreground">{row.label}</span>
               <div className="flex justify-end">
                 {awayHigher ? (
                   <span className="bg-red-600 text-white text-xs font-bold rounded px-1.5 py-0.5 tabular-nums">
-                    {row.a}
+                    {fmt(row.label, row.a)}
                   </span>
                 ) : (
-                  <span className="tabular-nums">{row.a ?? '—'}</span>
+                  <span className="tabular-nums">{fmt(row.label, row.a)}</span>
                 )}
               </div>
             </div>
