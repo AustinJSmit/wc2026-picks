@@ -81,6 +81,25 @@ function normalizeName(s: string): string {
   return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
 }
 
+// Known ESPN↔API-Football team name mismatches after normalization
+const TEAM_ALIASES: Record<string, string> = {
+  'turkiye': 'turkey',
+  'turkey': 'turkiye',
+  'south korea': 'korea republic',
+  'korea republic': 'south korea',
+  'united states': 'usa',
+  'usa': 'united states',
+  'usmnt': 'usa',
+  'ir iran': 'iran',
+  'iran': 'ir iran',
+  'ivory coast': 'cote d ivoire',
+  'cote d ivoire': 'ivory coast',
+};
+
+function nameMatches(a: string, b: string): boolean {
+  return a.includes(b) || b.includes(a) || TEAM_ALIASES[a] === b || TEAM_ALIASES[b] === a;
+}
+
 export async function findESPNEventId(
   date: Date,
   homeTeam: string,
@@ -108,11 +127,7 @@ export async function findESPNEventId(
       if (!home || !away) continue;
       const normH = normalizeName(home.team.displayName);
       const normA = normalizeName(away.team.displayName);
-      // Substring match handles "Turkiye"↔"Turkey", "Korea Republic"↔"South Korea", etc.
-      if (
-        (normH.includes(normHome) || normHome.includes(normH)) &&
-        (normA.includes(normAway) || normAway.includes(normA))
-      ) {
+      if (nameMatches(normH, normHome) && nameMatches(normA, normAway)) {
         return String(event.id);
       }
     }
@@ -147,17 +162,25 @@ export async function fetchESPNMatchDetail(espnId: string): Promise<{
 
   for (const evt of data.keyEvents ?? []) {
     const typeStr: string = evt.type?.type ?? '';
-    const minuteStr: string = evt.clock?.displayValue ?? '';
-    const minute = parseInt(minuteStr, 10) || 0;
+    const clockDisplay: string = evt.clock?.displayValue ?? '';
+    // Parse "90'+4'" → minute=90, injuryTime=4; or "17'" → minute=17, injuryTime=null
+    const injuryMatch = clockDisplay.match(/(\d+)['']?\+(\d+)/);
+    const minute = injuryMatch ? parseInt(injuryMatch[1], 10) : (parseInt(clockDisplay, 10) || 0);
+    const injuryTime = injuryMatch ? parseInt(injuryMatch[2], 10) : null;
     const teamName: string = evt.team?.displayName ?? '';
 
-    if (typeStr === 'goal') {
+    if (typeStr === 'goal' || typeStr === 'penalty---scored' || typeStr === 'own-goal') {
       const scorer: string = evt.participants?.[0]?.athlete?.displayName ?? '';
       const assistRaw: string | null = evt.participants?.[1]?.athlete?.displayName ?? null;
+      const goalType = typeStr === 'penalty---scored' || evt.penaltyKick
+        ? 'PENALTY'
+        : typeStr === 'own-goal' || evt.ownGoal
+        ? 'OWN_GOAL'
+        : 'REGULAR';
       goals.push({
         minute,
-        injuryTime: null,
-        type: evt.penaltyKick ? 'PENALTY' : evt.ownGoal ? 'OWN_GOAL' : 'REGULAR',
+        injuryTime,
+        type: goalType,
         team: { name: teamName },
         scorer: { name: scorer },
         assist: assistRaw ? { name: assistRaw } : null,
@@ -168,7 +191,7 @@ export async function fetchESPNMatchDetail(espnId: string): Promise<{
         minute,
         team: { name: teamName },
         player: { name: player },
-        card: evt.redCard ? 'RED_CARD' : 'YELLOW_CARD',
+        card: typeStr === 'red-card' ? 'RED_CARD' : 'YELLOW_CARD',
       });
     }
   }
