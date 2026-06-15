@@ -96,7 +96,7 @@ All admin endpoints require you to be logged in with your `ADMIN_EMAIL` account.
 
 The free API tier allows 100 requests/day. Each sync uses:
 - 1 request for the full match list (scores + status)
-- Up to 3 pairs of per-match calls (events + statistics) for recently finished matches missing data — 7 requests max per sync
+- Up to 10 pairs of per-match calls (events + statistics) for recently finished matches missing data — 21 requests max per sync
 
 Hit Sync once after each match finishes to keep data fresh. The sync button shows a diagnostic line confirming whether event data was found.
 
