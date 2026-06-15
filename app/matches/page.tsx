@@ -8,7 +8,6 @@ import { redirect } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import SyncButton from './sync-button';
 import LivePoller from './live-poller';
 import { getFifaRank } from '@/lib/fifa-rankings';
 
@@ -100,15 +99,12 @@ export default async function MatchesPage() {
     <div className="space-y-6">
       <LivePoller hasLive={live.length > 0} />
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Matches</h1>
-        <SyncButton />
-      </div>
+      <h1 className="text-2xl font-bold">Matches</h1>
 
       {allMatches.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            No matches loaded yet. Hit <strong>Sync</strong> to fetch the World Cup 2026 schedule.
+            Loading World Cup 2026 schedule…
           </CardContent>
         </Card>
       )}

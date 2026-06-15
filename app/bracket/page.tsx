@@ -12,19 +12,11 @@ type BracketMatch = typeof matches.$inferSelect & {
   predAway: number | null;
 };
 
-const ROUND_ORDER = [
-  'Round of 32',
-  'Round of 16',
-  'Quarterfinal',
-  'Semifinal',
-  '3rd Place Match',
-  'Final',
-];
+const MAIN_ROUNDS = ['Round of 32', 'Round of 16', 'Quarterfinal', 'Semifinal'];
 
 function getRoundLabel(stage: string | null): string {
   if (!stage) return 'Knockout';
-  // Stage values are stored exactly as round names (Round of 32, Quarterfinal, etc.)
-  return ROUND_ORDER.includes(stage) ? stage : stage;
+  return stage;
 }
 
 function formatDate(d: Date) {
@@ -50,7 +42,7 @@ function MatchCard({ match }: { match: BracketMatch }) {
         {/* Home team */}
         <div className={`flex items-center gap-1.5 px-2 py-1.5 border-b ${isFinished && (match.homeScore ?? 0) > (match.awayScore ?? 0) ? 'bg-primary/5 font-semibold' : ''}`}>
           {match.homeTeamCrest && homeKnown
-            ? <img src={match.homeTeamCrest} alt={match.homeTeam} className="h-4 w-4 object-contain shrink-0" />
+            ? <img src={match.homeTeamCrest} alt={match.homeTeam ?? ''} className="h-4 w-4 object-contain shrink-0" />
             : <div className="h-4 w-4 rounded-full bg-muted shrink-0" />
           }
           <span className="flex-1 truncate">{homeKnown ? match.homeTeam : 'TBD'}</span>
@@ -62,7 +54,7 @@ function MatchCard({ match }: { match: BracketMatch }) {
         {/* Away team */}
         <div className={`flex items-center gap-1.5 px-2 py-1.5 ${isFinished && (match.awayScore ?? 0) > (match.homeScore ?? 0) ? 'bg-primary/5 font-semibold' : ''}`}>
           {match.awayTeamCrest && awayKnown
-            ? <img src={match.awayTeamCrest} alt={match.awayTeam} className="h-4 w-4 object-contain shrink-0" />
+            ? <img src={match.awayTeamCrest} alt={match.awayTeam ?? ''} className="h-4 w-4 object-contain shrink-0" />
             : <div className="h-4 w-4 rounded-full bg-muted shrink-0" />
           }
           <span className="flex-1 truncate">{awayKnown ? match.awayTeam : 'TBD'}</span>
@@ -83,31 +75,42 @@ function MatchCard({ match }: { match: BracketMatch }) {
   );
 }
 
+// Draws bracket connector arms between adjacent round columns.
+// Each arm joins a pair of left-round cards pointing to one right-round card.
+function ConnectorColumn({ pairs }: { pairs: number }) {
+  return (
+    <div className="self-stretch flex flex-col pointer-events-none w-5 shrink-0">
+      {Array.from({ length: pairs }).map((_, i) => (
+        <div key={i} className="flex-1 flex flex-col">
+          <div className="flex-1 border-r border-t border-zinc-300 dark:border-zinc-700" />
+          <div className="flex-1 border-r border-b border-zinc-300 dark:border-zinc-700" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default async function BracketPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  // Group stage matches have stage "Group A" through "Group L"; everything else is knockout
   const allMatchRows = await db.select().from(matches).orderBy(matches.kickoffAt);
   const knockoutMatches = allMatchRows.filter(m =>
     m.stage != null && m.stage.trim() !== '' && !/^Group [A-Z]$/i.test(m.stage)
   );
 
-  // Fetch user's predictions for these matches
   const matchIds = knockoutMatches.map(m => m.id);
   const userPreds = matchIds.length > 0
     ? await db.select().from(predictions).where(eq(predictions.userId, user.id))
     : [];
   const predByMatch = Object.fromEntries(userPreds.map(p => [p.matchId, p]));
 
-  // Build bracket matches with prediction data
   const bracketMatches: BracketMatch[] = knockoutMatches.map(m => ({
     ...m,
     predHome: predByMatch[m.id]?.predHome ?? null,
     predAway: predByMatch[m.id]?.predAway ?? null,
   }));
 
-  // Group by round
   const byRound = new Map<string, BracketMatch[]>();
   for (const m of bracketMatches) {
     const round = getRoundLabel(m.stage);
@@ -115,12 +118,11 @@ export default async function BracketPage() {
     byRound.get(round)!.push(m);
   }
 
-  // Sort rounds in order
-  const rounds = ROUND_ORDER.filter(r => byRound.has(r));
-  // Add any unrecognized rounds at the end
-  for (const r of byRound.keys()) {
-    if (!rounds.includes(r)) rounds.push(r);
-  }
+  // Final and 3rd Place are extracted and rendered in a special centered column
+  const finalMatch = byRound.get('Final')?.[0] ?? null;
+  const thirdPlaceMatch = byRound.get('3rd Place Match')?.[0] ?? null;
+
+  const mainRounds = MAIN_ROUNDS.filter(r => byRound.has(r));
 
   if (bracketMatches.length === 0) {
     return (
@@ -134,53 +136,94 @@ export default async function BracketPage() {
     );
   }
 
+  // Gap and paddingTop per round so each round's cards align with the midpoint
+  // of the pairs in the previous round (visually creates a funnel toward center).
+  const GAP: Record<string, string> = {
+    'Round of 32': '8px',
+    'Round of 16': '92px',
+    'Quarterfinal': '220px',
+    'Semifinal': '476px',
+  };
+  const PADDING_TOP: Record<string, string> = {
+    'Round of 32': '0px',
+    'Round of 16': '50px',
+    'Quarterfinal': '164px',
+    'Semifinal': '392px',
+  };
+
+  // Finals column paddingTop: centers the Final+3P block between the two SF cards.
+  // SF[0].center ≈ 437px, SF[1].center ≈ 1003px → midpoint ≈ 720px.
+  // Two-card block height ≈ 196px → top ≈ 720 - 98 = 622px.
+  const FINALS_PADDING_TOP = '622px';
+
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-[1100px] mx-auto">
       <h1 className="text-2xl font-bold mb-2">Knockout Bracket</h1>
       <p className="text-sm text-muted-foreground mb-6">Click any match to view details or submit your prediction.</p>
 
-      {/* Horizontal scrollable bracket */}
-      <div className="overflow-x-auto pb-4">
-        <div className="flex gap-6 min-w-max">
-          {rounds.map(round => {
+      <div className="overflow-x-auto pb-6">
+        <div className="flex items-start min-w-max">
+
+          {mainRounds.map((round, roundIdx) => {
             const roundMatches = byRound.get(round) ?? [];
+            const isLastMain = roundIdx === mainRounds.length - 1;
+            const pairs = Math.ceil(roundMatches.length / 2);
+
             return (
-              <div key={round} className="flex flex-col gap-2">
-                {/* Round header */}
-                <div className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-widest pb-1 border-b mb-2">
-                  {round}
-                  <div className="text-[10px] font-normal mt-0.5">{roundMatches.length} match{roundMatches.length !== 1 ? 'es' : ''}</div>
+              <div key={round} className="flex items-start">
+                {/* Round column */}
+                <div className="flex flex-col">
+                  <div className="text-center text-[10px] font-semibold text-muted-foreground uppercase tracking-widest pb-1 border-b mb-3 px-1 min-w-[160px]">
+                    {round}
+                  </div>
+                  <div className="flex flex-col" style={{
+                    gap: GAP[round] ?? '8px',
+                    paddingTop: PADDING_TOP[round] ?? '0px',
+                  }}>
+                    {roundMatches.map(match => (
+                      <MatchCard key={match.id} match={match} />
+                    ))}
+                  </div>
                 </div>
 
-                {/* Matches in this round, with spacing to visually align with bracket flow */}
-                <div className="flex flex-col" style={{
-                  gap: round === 'Round of 32' ? '8px'
-                    : round === 'Round of 16' ? '92px'
-                    : round === 'Quarterfinal' ? '220px'
-                    : round === 'Semifinal' ? '476px'
-                    : '8px',
-                  paddingTop: round === 'Round of 16' ? '50px'
-                    : round === 'Quarterfinal' ? '164px'
-                    : round === 'Semifinal' ? '392px'
-                    : '0px',
-                }}>
-                  {roundMatches.map(match => (
-                    <MatchCard key={match.id} match={match} />
-                  ))}
-                </div>
+                {/* Connector column linking this round to the next */}
+                {!isLastMain && <ConnectorColumn pairs={pairs} />}
+
+                {/* Single connector arm from SF to the Finals column */}
+                {isLastMain && (finalMatch || thirdPlaceMatch) && (
+                  <ConnectorColumn pairs={1} />
+                )}
               </div>
             );
           })}
-        </div>
-      </div>
 
-      {/* Simple match list fallback below bracket */}
-      <div className="mt-8">
-        <h2 className="text-base font-semibold mb-3 text-muted-foreground">All Knockout Matches</h2>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {bracketMatches.map(match => (
-            <MatchCard key={match.id} match={match} />
-          ))}
+          {/* Finals column: Final + 3rd Place Match vertically centered between the SF cards */}
+          {(finalMatch || thirdPlaceMatch) && (
+            <div className="flex flex-col">
+              <div className="text-center text-[10px] font-semibold text-muted-foreground uppercase tracking-widest pb-1 border-b mb-3 px-1 min-w-[160px]">
+                Finals
+              </div>
+              <div className="flex flex-col gap-4" style={{ paddingTop: FINALS_PADDING_TOP }}>
+                {finalMatch && (
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 text-center">
+                      Final
+                    </div>
+                    <MatchCard match={finalMatch} />
+                  </div>
+                )}
+                {thirdPlaceMatch && (
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 text-center">
+                      3rd Place
+                    </div>
+                    <MatchCard match={thirdPlaceMatch} />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     </div>

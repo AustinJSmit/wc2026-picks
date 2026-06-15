@@ -455,16 +455,16 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
     <div className="max-w-lg mx-auto space-y-4">
       <LiveMatchPoller isLive={isLive} />
 
-      {/* ── Dark match header ────────────────────────────────────── */}
-      <div className="rounded-xl overflow-hidden bg-zinc-900 text-white">
-        <div className="flex items-center justify-between px-4 pt-3 pb-1 text-xs text-zinc-400">
+      {/* ── Match header ─────────────────────────────────────────── */}
+      <div className="rounded-xl overflow-hidden bg-card border text-foreground dark:bg-zinc-900 dark:text-white dark:border-transparent">
+        <div className="flex items-center justify-between px-4 pt-3 pb-1 text-xs text-muted-foreground">
           <span>
             FIFA World Cup 2026™{groupName ? ` · ${groupName}` : match.stage ? ` · ${match.stage}` : ''} · {formatShortDate(new Date(match.kickoffAt), user.timezone)}
           </span>
           <span className={
-            isFinished ? 'text-zinc-300' :
-            isLive ? 'text-red-400 font-semibold animate-pulse' :
-            'text-zinc-400'
+            isFinished ? 'text-foreground dark:text-zinc-300' :
+            isLive ? 'text-red-500 dark:text-red-400 font-semibold animate-pulse' :
+            'text-muted-foreground'
           }>
             {isFinished ? 'Full-time' : isLive ? '🔴 Live' : formatKickoff(new Date(match.kickoffAt), user.timezone)}
           </span>
@@ -477,19 +477,19 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               <img src={match.homeTeamCrest} alt={match.homeTeam} className="h-14 w-14 object-contain" />
             )}
             <span className="font-semibold text-sm text-center leading-tight max-w-[90px]">{match.homeTeam}</span>
-            {homePos && <span className="text-[10px] text-zinc-500">{ordinal(homePos)}</span>}
-            <span className="text-[10px] text-zinc-600">FIFA #{getFifaRank(match.homeTeam) ?? '—'}</span>
+            {homePos && <span className="text-[10px] text-muted-foreground">{ordinal(homePos)}</span>}
+            <span className="text-[10px] text-muted-foreground/60">FIFA #{getFifaRank(match.homeTeam) ?? '—'}</span>
           </div>
 
           <div className="text-center px-4 shrink-0">
             {(isFinished || isLive) && match.homeScore != null ? (
               <div className="text-5xl font-bold tabular-nums tracking-tight">
-                {match.homeScore} <span className="text-zinc-600">–</span> {match.awayScore}
+                {match.homeScore} <span className="text-muted-foreground/60">–</span> {match.awayScore}
               </div>
             ) : (
               <>
-                <div className="text-2xl font-light text-zinc-500">vs</div>
-                <div className="text-[10px] text-zinc-500 mt-1">
+                <div className="text-2xl font-light text-muted-foreground">vs</div>
+                <div className="text-[10px] text-muted-foreground mt-1">
                   {formatKickoff(new Date(match.kickoffAt), user.timezone)}
                 </div>
               </>
@@ -502,14 +502,14 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               <img src={match.awayTeamCrest} alt={match.awayTeam} className="h-14 w-14 object-contain" />
             )}
             <span className="font-semibold text-sm text-center leading-tight max-w-[90px]">{match.awayTeam}</span>
-            {awayPos && <span className="text-[10px] text-zinc-500">{ordinal(awayPos)}</span>}
-            <span className="text-[10px] text-zinc-600">FIFA #{getFifaRank(match.awayTeam) ?? '—'}</span>
+            {awayPos && <span className="text-[10px] text-muted-foreground">{ordinal(awayPos)}</span>}
+            <span className="text-[10px] text-muted-foreground/60">FIFA #{getFifaRank(match.awayTeam) ?? '—'}</span>
           </div>
         </div>
 
         {/* Inline goal scorers */}
         {(isFinished || isLive) && hasEvents && (homeGoals.length > 0 || awayGoals.length > 0) && (
-          <div className="flex justify-between px-6 pb-3 text-xs text-zinc-400 border-t border-zinc-800 pt-3">
+          <div className="flex justify-between px-6 pb-3 text-xs text-muted-foreground border-t border-border pt-3">
             <div className="space-y-0.5 flex-1">
               {homeGoals.map((g, i) => <div key={i}>⚽ {scorerLine(g)}</div>)}
             </div>
@@ -521,7 +521,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
 
         {/* Venue + attendance */}
         {isFinished && (match.venue || match.attendance) && (
-          <div className="px-6 pb-3 text-[10px] text-zinc-500 text-center">
+          <div className="px-6 pb-3 text-[10px] text-muted-foreground text-center">
             {[match.venue, match.attendance ? match.attendance.toLocaleString() + ' att.' : null]
               .filter(Boolean)
               .join(' · ')}
