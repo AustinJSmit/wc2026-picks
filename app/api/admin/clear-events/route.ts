@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { matches } from '@/db/schema';
-import { getSession } from '@/lib/session';
+import { getCurrentUser } from '@/lib/auth';
 import { eq } from 'drizzle-orm';
 
 export async function POST() {
-  const session = await getSession();
-  if (!session.email || session.email !== process.env.ADMIN_EMAIL) {
+  const user = await getCurrentUser();
+  if (!user?.isAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

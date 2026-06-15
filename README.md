@@ -1,4 +1,4 @@
-# WC2026 Picks
+# World Cup 2026
 
 A World Cup 2026 prediction game. Players create accounts, predict match scores before kickoff, and earn points automatically when results come in.
 
@@ -11,7 +11,9 @@ A World Cup 2026 prediction game. Players create accounts, predict match scores 
 
 ---
 
-## Deploy in ~5 minutes (free forever)
+## Deploy in ~5 minutes (free forever, no coding required)
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/AustinJSmit/wc2026-picks&env=DATABASE_URL,SESSION_SECRET&envDescription=DATABASE_URL%3A%20Your%20Neon%20connection%20string.%20SESSION_SECRET%3A%2032%2B%20random%20characters.)
 
 ### 1. Set up the database (Neon)
 
@@ -20,6 +22,8 @@ A World Cup 2026 prediction game. Players create accounts, predict match scores 
 3. Copy the **Connection string** from the dashboard (looks like `postgresql://user:pass@host/db?sslmode=require`)
 
 ### 2. Deploy to Vercel
+
+Click the **Deploy with Vercel** button above, or:
 
 1. Fork this repo to your GitHub account
 2. Go to [vercel.com](https://vercel.com) → **Add New Project** → import your fork
@@ -32,20 +36,24 @@ A World Cup 2026 prediction game. Players create accounts, predict match scores 
 
 4. Click **Deploy**
 
-No football data API key required — match data is fetched from the ESPN public API.
+No API key required — match data is fetched from the ESPN public API automatically.
 
-### 3. Set up the database schema
+### 3. Initialize your database
 
-After first deploy, run once from your local machine:
+After your site deploys, visit:
 
-```bash
-npm install
-DATABASE_URL="your-neon-connection-string" npm run db:push
+```
+https://your-app.vercel.app/setup
 ```
 
-### 4. Load the match schedule
+Click **Initialize Database**. That's it — no terminal, no commands.
 
-Visit `/matches` after logging in. The page automatically syncs from ESPN on every load — all 104 World Cup 2026 matches (group stage + full knockout bracket) will appear within a few seconds.
+### 4. Register and play
+
+- Visit your site and click **Sign up**
+- The **first person to register** automatically becomes the host (admin)
+- Share the URL with friends — they sign up and start making picks
+- Match data loads automatically when anyone visits `/matches`
 
 ---
 
@@ -56,9 +64,10 @@ cp .env.example .env.local
 # fill in DATABASE_URL and SESSION_SECRET in .env.local
 
 npm install
-npm run db:push   # create tables in Neon
 npm run dev       # start at localhost:3000
 ```
+
+Then visit `http://localhost:3000/setup` to initialize the database.
 
 ---
 
@@ -67,15 +76,34 @@ npm run dev       # start at localhost:3000
 - **Email + password accounts** with optional demographic profile (age, gender, country, favorite team)
 - **Timezone settings** — each user picks their timezone; kickoff times display locally everywhere
 - **Match list** — live matches at top with pulsing indicator; upcoming (collapsible, make picks); past results (collapsible); all auto-sync from ESPN on page load
-- **Match detail** — scoreline, goal scorers with minute + type (penalty/OG), team statistics, lineup pitch visualization, group standings, and for knockout matches: each team's tournament history
+- **Match detail** — scoreline, goal scorers with minute + type (penalty/OG/header), yellow/red cards with player names, team statistics, lineup pitch visualization, group standings, and for knockout matches: each team's tournament history
 - **Predictions lock at kickoff** — enforced server-side; friends' picks become visible after kickoff
 - **Friends' picks** — after kickoff, see every player's prediction with team crests on the match page
 - **Knockout bracket** (`/bracket`) — full 32-match bracket with connector lines, prediction badges, and Finals column centered between the Semifinals
-- **Leaderboard** (`/leaderboard`) — podium top-3, full table with correct result %, exact score count
+- **Leaderboard** (`/leaderboard`) — unified table with gold/silver/bronze rank colors, correct result %, exact score count
 - **Auto-scoring** — points award automatically when matches sync after full-time
-- **Dark mode** — follows system default; toggle in nav (System / Light / Dark); FOUC-free
+- **Dark mode** — follows system default; toggle in nav dropdown (System / Light / Dark); FOUC-free
 - **Live polling** — matches page syncs every time it loads; live matches refresh every 60 seconds automatically
-- **Lineup pitch** — portrait pitch view with goal-net visuals at each end, player dots sized by formation row
+- **Lineup pitch** — portrait pitch view with goal-net visuals at each end, available for upcoming, live, and finished matches
+
+---
+
+## Host panel (admin features)
+
+The first person to register is automatically the host. Access the host panel via the nav dropdown → **Host Panel**.
+
+| Feature | Description |
+|---|---|
+| **Reset predictions** | Delete all picks (keeps match data). Useful for a re-do. |
+| **New tournament** | Full wipe — all matches and predictions. Visit `/matches` after to reload. |
+| **Transfer host** | Hand control to another player. You are logged out immediately. |
+
+### Starting a new season
+
+When the World Cup ends and you want to play again for another tournament:
+
+1. Go to **Host Panel** → **New Tournament** → confirm
+2. Visit `/matches` — the new tournament's schedule loads automatically
 
 ---
 
@@ -90,19 +118,22 @@ All match data comes from the **ESPN unofficial API** (no key required, no rate 
 | Group standings | `/standings` |
 
 Goal event types handled: `goal`, `goal---header`, `goal---volley`, `penalty---scored`, `own-goal`
+Card event types handled: `yellow-card`, `red-card`, `var---red-card-upgrade`
 
 ---
 
-## Admin endpoints
+## Admin API endpoints
 
-These endpoints work for any logged-in user with server access (no special role required — designed for the app owner).
+These endpoints are also accessible via HTTP for power users:
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/api/matches/sync` | POST | Sync match schedule + scores from ESPN; backfills goal/stat/lineup data for up to 10 recently finished or live matches per call |
-| `/api/export` | GET | Download CSV of all players, demographics, and total points |
-| `/api/admin/reset` | POST | Delete all matches and predictions |
-| `/api/admin/clear-events` | POST | Clear goals/bookings/stats for all matches without touching predictions |
+| `/api/setup` | POST | Initialize or upgrade the database schema |
+| `/api/matches/sync` | POST | Sync match schedule + scores from ESPN |
+| `/api/export` | GET | Download CSV of all players and points (host only) |
+| `/api/admin/reset-predictions` | POST | Delete all predictions, keep matches (host only) |
+| `/api/admin/reset` | POST | Delete all matches and predictions (host only) |
+| `/api/admin/clear-events` | POST | Clear goals/bookings/stats for re-sync (host only) |
 
 ---
 

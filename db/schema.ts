@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, unique, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, integer, timestamp, unique, jsonb, boolean } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -11,6 +11,7 @@ export const users = pgTable('users', {
   favoriteTeam: text('favorite_team'),
   timezone: text('timezone'),
   darkMode: text('dark_mode'),
+  isAdmin: boolean('is_admin').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

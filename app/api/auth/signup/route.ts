@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/db';
 import { users } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { hashPassword } from '@/lib/auth';
 import { getSession } from '@/lib/session';
 
@@ -29,6 +29,12 @@ export async function POST(req: NextRequest) {
 
   const passwordHash = await hashPassword(password);
   const [user] = await db.insert(users).values({ email, passwordHash, displayName, timezone: timezone ?? null }).returning();
+
+  // First user to register becomes the host/admin
+  const [{ n }] = await db.select({ n: sql<number>`count(*)` }).from(users);
+  if (Number(n) === 1) {
+    await db.update(users).set({ isAdmin: true }).where(eq(users.id, user.id));
+  }
 
   const session = await getSession();
   session.userId = user.id;
