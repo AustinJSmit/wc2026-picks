@@ -1,9 +1,8 @@
-const BASE = 'https://api-football-v1.p.rapidapi.com/v3';
+const BASE = 'https://v3.football.api-sports.io';
 
 function headers() {
   return {
-    'X-RapidAPI-Key': process.env.API_FOOTBALL_KEY ?? '',
-    'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com',
+    'x-apisports-key': process.env.API_FOOTBALL_KEY ?? '',
   };
 }
 
