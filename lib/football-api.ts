@@ -186,13 +186,13 @@ export async function fetchESPNMatchDetail(espnId: string): Promise<{
         scorer: { name: scorer },
         assist: assistRaw ? { name: assistRaw } : null,
       });
-    } else if (typeStr === 'yellow-card' || typeStr === 'red-card') {
-      const player: string = evt.athletesInvolved?.[0]?.displayName ?? '';
+    } else if (typeStr === 'yellow-card' || typeStr === 'red-card' || typeStr === 'var---red-card-upgrade') {
+      const player: string = evt.participants?.[0]?.athlete?.displayName ?? '';
       bookings.push({
         minute,
         team: { name: teamName },
         player: { name: player },
-        card: typeStr === 'red-card' ? 'RED_CARD' : 'YELLOW_CARD',
+        card: typeStr === 'yellow-card' ? 'YELLOW_CARD' : 'RED_CARD',
       });
     }
   }

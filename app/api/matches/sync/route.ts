@@ -112,7 +112,7 @@ export async function POST() {
           // FINISHED matches: fetch if goals, lineups, or statistics are still missing
           and(
             eq(matches.status, 'FINISHED'),
-            or(isNull(matches.goals), isNull(matches.lineups), isNull(matches.statistics))
+            or(isNull(matches.goals), isNull(matches.lineups), isNull(matches.statistics), isNull(matches.bookings))
           )
         )
       )
@@ -152,9 +152,10 @@ export async function POST() {
             .where(eq(matches.id, match.id));
           detailsFilled++;
         } else if (goalsAlreadyFilled) {
-          // Goals already filled — only backfill supplemental data
+          // Goals already filled — backfill bookings + supplemental data
           await db.update(matches)
             .set({
+              bookings: detail.bookings.length > 0 ? detail.bookings : null,
               lineups: detail.lineups ?? null,
               venue: detail.venue ?? null,
               attendance: detail.attendance ?? null,
