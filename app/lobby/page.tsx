@@ -7,7 +7,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CreateLobbyForm, JoinLobbyForm, SwitchLobbyButton } from './lobby-actions';
+import { CreateLobbyForm, JoinLobbyForm, SwitchLobbyButton, CopyCodeButton, LobbyRowActions } from './lobby-actions';
 
 export default async function LobbyPage() {
   const user = await getCurrentUser();
@@ -54,14 +54,20 @@ export default async function LobbyPage() {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Code: <span className="font-mono">{lobby.code}</span> · {lobby.memberCount} member{Number(lobby.memberCount) !== 1 ? 's' : ''}
-                  </p>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>
+                      Code: <span className="font-mono">{lobby.code}</span> · {lobby.memberCount} member{Number(lobby.memberCount) !== 1 ? 's' : ''}
+                    </span>
+                    <CopyCodeButton code={lobby.code} />
+                  </div>
                 </div>
-                <SwitchLobbyButton
-                  lobbyId={lobby.id}
-                  isCurrent={session.currentLobbyId === lobby.id}
-                />
+                <div className="flex items-center gap-2 shrink-0">
+                  <SwitchLobbyButton
+                    lobbyId={lobby.id}
+                    isCurrent={session.currentLobbyId === lobby.id}
+                  />
+                  <LobbyRowActions lobbyId={lobby.id} lobbyName={lobby.name} isHost={lobby.isHost} />
+                </div>
               </div>
             ))}
           </CardContent>

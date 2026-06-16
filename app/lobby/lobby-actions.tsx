@@ -11,6 +11,7 @@ export function CreateLobbyForm() {
   const router = useRouter();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [createdLobby, setCreatedLobby] = useState<{ name: string; code: string } | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -32,8 +33,30 @@ export function CreateLobbyForm() {
       return;
     }
 
+    setCreatedLobby({ name: data.lobby.name, code: data.lobby.code });
+  }
+
+  function handleContinue() {
     router.push('/matches');
     router.refresh();
+  }
+
+  if (createdLobby) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{createdLobby.name} is ready</CardTitle>
+          <CardDescription>Share this code with friends so they can join.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border bg-muted/30">
+            <span className="text-2xl font-mono tracking-widest">{createdLobby.code}</span>
+            <CopyCodeButton code={createdLobby.code} />
+          </div>
+          <Button onClick={handleContinue} className="w-full">Continue to matches</Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -57,6 +80,97 @@ export function CreateLobbyForm() {
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+export function CopyCodeButton({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <Button size="sm" variant="outline" onClick={handleCopy} className="shrink-0">
+      {copied ? 'Copied!' : 'Copy code'}
+    </Button>
+  );
+}
+
+function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-card text-card-foreground border rounded-xl shadow-xl max-w-sm w-full p-6 space-y-4">
+        <h2 className="font-bold text-lg">⚠️ {title}</h2>
+        <p className="text-sm text-muted-foreground">{message}</p>
+        <div className="flex gap-3 justify-end pt-1">
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button onClick={onConfirm} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+            {confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function LobbyRowActions({ lobbyId, lobbyName, isHost }: { lobbyId: number; lobbyName: string; isHost: boolean }) {
+  const router = useRouter();
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleConfirm() {
+    setShowConfirm(false);
+    setLoading(true);
+    const res = await fetch(isHost ? '/api/lobbies/delete' : '/api/lobbies/leave', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lobbyId }),
+    });
+    setLoading(false);
+    if (res.ok) {
+      router.refresh();
+    } else {
+      const data = await res.json();
+      setError(data.error ?? 'Something went wrong');
+    }
+  }
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setShowConfirm(true)}
+        disabled={loading}
+        className="shrink-0 text-destructive hover:text-destructive"
+      >
+        {isHost ? 'Delete' : 'Leave'}
+      </Button>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      {showConfirm && (
+        <ConfirmModal
+          title={isHost ? `Delete "${lobbyName}"?` : `Leave "${lobbyName}"?`}
+          message={
+            isHost
+              ? `This permanently deletes "${lobbyName}" and all its predictions for every member. This cannot be undone.`
+              : `You'll need the join code to get back in.`
+          }
+          confirmLabel={isHost ? 'Delete lobby' : 'Leave lobby'}
+          onConfirm={handleConfirm}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
+    </>
   );
 }
 
