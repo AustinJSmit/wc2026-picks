@@ -50,7 +50,11 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
   const params = await searchParams;
   const requestedId = params.userId ? parseInt(params.userId) : currentUser.id;
 
-  const members = await getLobbyMembers(lobby.id);
+  const rawMembers = await getLobbyMembers(lobby.id);
+  const members = [
+    ...rawMembers.filter(m => m.id === currentUser.id),
+    ...rawMembers.filter(m => m.id !== currentUser.id),
+  ];
   const isValidMember = members.some(m => m.id === requestedId);
   const targetUserId = isValidMember ? requestedId : currentUser.id;
   const targetUser = members.find(m => m.id === targetUserId)!;
