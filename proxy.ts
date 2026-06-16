@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { baselineIpLimiter, getClientIp, checkRateLimit, rateLimitResponse } from '@/lib/rateLimit';
 
-const protectedPaths = ['/matches', '/match', '/profile'];
+const protectedPaths = ['/matches', '/match', '/profile', '/history'];
 
 export async function proxy(req: NextRequest) {
   if (req.nextUrl.pathname.startsWith('/api/')) {
@@ -23,5 +23,5 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/matches/:path*', '/match/:path*', '/profile/:path*', '/api/:path*'],
+  matcher: ['/matches/:path*', '/match/:path*', '/profile/:path*', '/history/:path*', '/history', '/api/:path*'],
 };

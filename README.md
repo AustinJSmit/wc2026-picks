@@ -7,13 +7,13 @@ A World Cup 2026 prediction game. Players create accounts, predict match scores 
 - +1 point — exact correct scoreline
 - Max 2 points per match · 104 matches total
 
-**Live at:** [wc2026-picks-beta.vercel.app](https://wc2026-picks-beta.vercel.app)
+**Live at:** [wc2026propicks.vercel.app](https://wc2026propicks.vercel.app)
 
 ---
 
 ## Deploy in ~5 minutes (free forever, no coding required)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/AustinJSmit/wc2026-picks&env=DATABASE_URL,SESSION_SECRET&envDescription=DATABASE_URL%3A%20Your%20Neon%20connection%20string.%20SESSION_SECRET%3A%2032%2B%20random%20characters.)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/AustinJSmit/wc2026-picks&env=DATABASE_URL,SESSION_SECRET,UPSTASH_REDIS_REST_URL,UPSTASH_REDIS_REST_TOKEN,NEXT_PUBLIC_TURNSTILE_SITE_KEY,TURNSTILE_SECRET_KEY&envDescription=See%20README%20for%20setup%20instructions%20for%20each%20variable.)
 
 ### 1. Set up the database (Neon)
 
@@ -29,14 +29,18 @@ Click the **Deploy with Vercel** button above, or:
 2. Go to [vercel.com](https://vercel.com) → **Add New Project** → import your fork
 3. In the **Environment Variables** section, add:
 
-| Variable | Value |
+| Variable | Where to get it |
 |---|---|
 | `DATABASE_URL` | Your Neon connection string |
-| `SESSION_SECRET` | 32+ random characters (generate: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`) |
+| `SESSION_SECRET` | 32+ random chars — `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `UPSTASH_REDIS_REST_URL` | [upstash.com](https://upstash.com) → create a free Redis DB → REST API tab |
+| `UPSTASH_REDIS_REST_TOKEN` | Same Upstash REST API tab |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | [Cloudflare Turnstile](https://dash.cloudflare.com) → Application security → Turnstile → Add widget |
+| `TURNSTILE_SECRET_KEY` | Same Turnstile widget page |
 
 4. Click **Deploy**
 
-No API key required — match data is fetched from the ESPN public API automatically.
+No football data API key required — match data is fetched from the ESPN public API automatically. Rate limiting and CAPTCHA gracefully degrade (log a warning) if the Upstash/Turnstile vars are missing, so the app still works without them.
 
 ### 3. Initialize your database
 
@@ -61,7 +65,8 @@ Click **Initialize Database**. That's it — no terminal, no commands.
 
 ```bash
 cp .env.example .env.local
-# fill in DATABASE_URL and SESSION_SECRET in .env.local
+# Fill in DATABASE_URL and SESSION_SECRET (required)
+# Fill in UPSTASH_* and TURNSTILE_* (optional — app works without them locally)
 
 npm install
 npm run dev       # start at localhost:3000
@@ -84,6 +89,8 @@ Then visit `http://localhost:3000/setup` to initialize the database.
 - **Auto-scoring** — points award automatically when matches sync after full-time
 - **Dark mode** — follows system default; toggle in nav dropdown (System / Light / Dark); FOUC-free
 - **Live polling** — matches page syncs every time it loads; live matches refresh every 60 seconds automatically
+- **Rate limiting** — Upstash Redis-backed limits on login (10/5 min per IP, 5/5 min per email), signup (5/hr per IP), and lobby join (10/min per IP)
+- **CAPTCHA** — Cloudflare Turnstile on signup to block bot registrations
 - **Lineup pitch** — portrait pitch view with goal-net visuals at each end, available for upcoming, live, and finished matches
 - **Private lobbies** (`/lobby`) — create your own group with a shareable 6-character join code, join others' lobbies with a code, and belong to multiple lobbies at once (e.g. one with college friends, one with family). Predictions and the leaderboard are scored separately per lobby; the underlying match schedule is shared by everyone.
 

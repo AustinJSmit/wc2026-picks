@@ -6,6 +6,7 @@ import { sql, eq, and } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
 import { getCurrentLobby } from '@/lib/lobby';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 async function getLeaderboard(lobbyId: number) {
@@ -15,7 +16,7 @@ async function getLeaderboard(lobbyId: number) {
       displayName: users.displayName,
       favoriteTeam: users.favoriteTeam,
       totalPoints: sql<number>`coalesce(sum(${predictions.points}), 0)`.as('total_points'),
-      totalPicks: sql<number>`count(${predictions.id})`.as('total_picks'),
+      completedPicks: sql<number>`count(case when ${predictions.points} is not null then 1 end)`.as('completed_picks'),
       exactScores: sql<number>`count(case when ${predictions.points} = 2 then 1 end)`.as('exact_scores'),
       correctResults: sql<number>`count(case when ${predictions.points} >= 1 then 1 end)`.as('correct_results'),
     })
@@ -57,35 +58,40 @@ export default async function LeaderboardPage() {
           <CardContent className="pt-2">
             <div
               className="grid text-[10px] text-muted-foreground px-2 py-1 border-b"
-              style={{ gridTemplateColumns: '28px 1fr 44px 52px 40px 36px' }}
+              style={{ gridTemplateColumns: '28px 1fr 48px 70px 70px 36px' }}
             >
               <span>#</span>
               <span>Player</span>
-              <span className="text-center">Picks</span>
-              <span className="text-center">Correct%</span>
-              <span className="text-center">Exact</span>
+              <span className="text-center">Team %</span>
+              <span className="text-center">Correct (1pt)</span>
+              <span className="text-center">Exact (2pts)</span>
               <span className="text-center font-semibold">Pts</span>
             </div>
             <div className="divide-y">
               {leaderboard.map((player, i) => {
-                const picks = Number(player.totalPicks);
+                const completed = Number(player.completedPicks);
                 const correct = Number(player.correctResults);
                 const exact = Number(player.exactScores);
-                const accuracy = picks > 0 ? Math.round((correct / picks) * 100) : 0;
+                const teamRate = completed > 0 ? Math.round((correct / completed) * 100) : 0;
                 const isMe = player.id === user?.id;
 
                 return (
                   <div
                     key={player.id}
                     className={`grid items-center px-2 py-2.5 text-sm ${isMe ? 'bg-primary/5 font-semibold' : ''}`}
-                    style={{ gridTemplateColumns: '28px 1fr 44px 52px 40px 36px' }}
+                    style={{ gridTemplateColumns: '28px 1fr 48px 70px 70px 36px' }}
                   >
                     <span className={`text-xs ${rankColor(i)}`}>#{i + 1}</span>
-                    <span className={`truncate ${isMe ? 'text-primary' : ''}`}>
+                    <Link
+                      href={`/history?userId=${player.id}`}
+                      className={`truncate hover:underline ${isMe ? 'text-primary' : ''}`}
+                    >
                       {player.displayName}{isMe ? ' ✦' : ''}
+                    </Link>
+                    <span className="text-center text-xs text-muted-foreground">
+                      {completed > 0 ? `${teamRate}%` : '—'}
                     </span>
-                    <span className="text-center text-xs text-muted-foreground">{picks}</span>
-                    <span className="text-center text-xs text-muted-foreground">{accuracy}%</span>
+                    <span className="text-center text-xs text-muted-foreground">{correct}</span>
                     <span className="text-center text-xs text-muted-foreground">{exact}</span>
                     <span className="text-center font-bold">{player.totalPoints}</span>
                   </div>
