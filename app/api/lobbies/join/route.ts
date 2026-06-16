@@ -4,12 +4,16 @@ import { db } from '@/db';
 import { lobbies, lobbyMembers } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { getSession } from '@/lib/session';
+import { joinIpLimiter, getClientIp, checkRateLimit, rateLimitResponse } from '@/lib/rateLimit';
 
 const schema = z.object({
   code: z.string().min(1, 'Enter a lobby code'),
 });
 
 export async function POST(req: NextRequest) {
+  const ipCheck = await checkRateLimit(joinIpLimiter, getClientIp(req));
+  if (!ipCheck.success) return rateLimitResponse(ipCheck.reset);
+
   const session = await getSession();
   if (!session.userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -85,6 +85,13 @@ export async function POST() {
 
     await sql`ALTER TABLE predictions ADD COLUMN IF NOT EXISTS lobby_id INTEGER REFERENCES lobbies(id)`;
 
+    await sql`
+      CREATE TABLE IF NOT EXISTS sync_state (
+        id INTEGER PRIMARY KEY,
+        last_synced_at TIMESTAMP
+      )
+    `;
+
     return NextResponse.json({ ok: true, message: 'Database ready' });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

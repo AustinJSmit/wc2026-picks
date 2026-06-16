@@ -5,22 +5,34 @@ import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { hashPassword } from '@/lib/auth';
 import { getSession } from '@/lib/session';
+import { signupIpLimiter, getClientIp, checkRateLimit, rateLimitResponse } from '@/lib/rateLimit';
+import { verifyTurnstileToken } from '@/lib/turnstile';
 
 const schema = z.object({
   email: z.email(),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   displayName: z.string().min(2, 'Display name must be at least 2 characters').max(30),
   timezone: z.string().optional(),
+  turnstileToken: z.string().min(1, 'Verification check is required'),
 });
 
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+  const ipCheck = await checkRateLimit(signupIpLimiter, ip);
+  if (!ipCheck.success) return rateLimitResponse(ipCheck.reset);
+
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
   }
 
-  const { email, password, displayName, timezone } = parsed.data;
+  const { email, password, displayName, timezone, turnstileToken } = parsed.data;
+
+  const captchaValid = await verifyTurnstileToken(turnstileToken, ip);
+  if (!captchaValid) {
+    return NextResponse.json({ error: 'CAPTCHA verification failed' }, { status: 400 });
+  }
 
   const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
   if (existing) {

@@ -5,6 +5,7 @@ import { users, lobbyMembers } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyPassword } from '@/lib/auth';
 import { getSession } from '@/lib/session';
+import { loginIpLimiter, loginEmailLimiter, getClientIp, checkRateLimit, rateLimitResponse } from '@/lib/rateLimit';
 
 const schema = z.object({
   email: z.email(),
@@ -12,6 +13,10 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+  const ipCheck = await checkRateLimit(loginIpLimiter, ip);
+  if (!ipCheck.success) return rateLimitResponse(ipCheck.reset);
+
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
@@ -19,6 +24,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { email, password } = parsed.data;
+
+  const emailCheck = await checkRateLimit(loginEmailLimiter, email.toLowerCase());
+  if (!emailCheck.success) return rateLimitResponse(emailCheck.reset);
 
   const [user] = await db.select().from(users).where(eq(users.email, email));
   if (!user) {

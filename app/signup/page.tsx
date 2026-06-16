@@ -1,21 +1,42 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Script from 'next/script';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 
+declare global {
+  interface Window {
+    onTurnstileVerify?: (token: string) => void;
+  }
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
+
+  useEffect(() => {
+    window.onTurnstileVerify = (token: string) => setTurnstileToken(token);
+    return () => {
+      delete window.onTurnstileVerify;
+    };
+  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError('');
+
+    if (!turnstileToken) {
+      setError('Please complete the verification check.');
+      return;
+    }
+
     setLoading(true);
 
     const form = new FormData(e.currentTarget);
@@ -27,6 +48,7 @@ export default function SignupPage() {
         password: form.get('password'),
         displayName: form.get('displayName'),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        turnstileToken,
       }),
     });
 
@@ -44,6 +66,7 @@ export default function SignupPage() {
 
   return (
     <div className="flex items-center justify-center min-h-[70vh]">
+      <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" />
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center">
           <div className="text-4xl mb-2">⚽</div>
@@ -65,11 +88,17 @@ export default function SignupPage() {
               <Input id="password" name="password" type="password" placeholder="At least 8 characters" required minLength={8} />
             </div>
 
+            <div
+              className="cf-turnstile"
+              data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+              data-callback="onTurnstileVerify"
+            />
+
             {error && (
               <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">{error}</p>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || !turnstileToken}>
               {loading ? 'Creating account…' : 'Create account'}
             </Button>
 

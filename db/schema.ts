@@ -35,6 +35,11 @@ export const matches = pgTable('matches', {
   attendance: integer('attendance'),
 });
 
+export const syncState = pgTable('sync_state', {
+  id: integer('id').primaryKey(),
+  lastSyncedAt: timestamp('last_synced_at'),
+});
+
 export const lobbies = pgTable('lobbies', {
   id: serial('id').primaryKey(),
   code: text('code').unique().notNull(),
@@ -66,3 +71,4 @@ export type Match = typeof matches.$inferSelect;
 export type Prediction = typeof predictions.$inferSelect;
 export type Lobby = typeof lobbies.$inferSelect;
 export type LobbyMember = typeof lobbyMembers.$inferSelect;
+export type SyncState = typeof syncState.$inferSelect;

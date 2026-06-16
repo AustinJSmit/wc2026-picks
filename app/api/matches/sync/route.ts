@@ -1,12 +1,23 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { matches, predictions } from '@/db/schema';
+import { matches, predictions, syncState } from '@/db/schema';
 import { eq, isNull, desc, and, or, lte } from 'drizzle-orm';
 import { fetchESPNFixtures, fetchESPNMatchDetail } from '@/lib/football-api';
 import type { ApiMatch } from '@/lib/football-api';
 import { calculatePoints } from '@/lib/scoring';
 
+const SYNC_COOLDOWN_MS = 20_000;
+
 export async function POST() {
+  const [state] = await db.select().from(syncState).where(eq(syncState.id, 1));
+  if (state?.lastSyncedAt && Date.now() - state.lastSyncedAt.getTime() < SYNC_COOLDOWN_MS) {
+    return NextResponse.json({ ok: true, skipped: true, matchesSynced: 0, pointsAwarded: 0, failed: 0, detailsFilled: 0 });
+  }
+  await db
+    .insert(syncState)
+    .values({ id: 1, lastSyncedAt: new Date() })
+    .onConflictDoUpdate({ target: syncState.id, set: { lastSyncedAt: new Date() } });
+
   let apiMatches: ApiMatch[];
   try {
     apiMatches = await fetchESPNFixtures();
