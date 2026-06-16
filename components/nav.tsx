@@ -15,7 +15,7 @@ export default async function Nav() {
           <span>World Cup 2026</span>
         </Link>
 
-        <div className="flex items-center gap-4 text-sm font-medium overflow-x-auto">
+        <div className="flex items-center gap-4 text-sm font-medium">
           {user ? (
             <>
               <Link href="/matches" className="opacity-90 hover:opacity-100 transition-opacity whitespace-nowrap">
@@ -27,7 +27,7 @@ export default async function Nav() {
               <Link href="/leaderboard" className="opacity-90 hover:opacity-100 transition-opacity whitespace-nowrap">
                 Leaderboard
               </Link>
-              <NavUserMenu displayName={user.displayName} isAdmin={user.isAdmin ?? false} />
+              <NavUserMenu isAdmin={user.isAdmin ?? false} />
             </>
           ) : (
             <>

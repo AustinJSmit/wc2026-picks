@@ -6,7 +6,7 @@ import { ChevronDown } from 'lucide-react';
 import ThemeToggle from './theme-toggle';
 import LogoutButton from './logout-button';
 
-export default function NavUserMenu({ displayName, isAdmin }: { displayName: string; isAdmin: boolean }) {
+export default function NavUserMenu({ isAdmin }: { isAdmin: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -27,7 +27,7 @@ export default function NavUserMenu({ displayName, isAdmin }: { displayName: str
         className="flex items-center gap-1 opacity-90 hover:opacity-100 transition-opacity text-sm font-medium whitespace-nowrap"
         aria-expanded={open}
       >
-        {displayName}
+        Settings
         <ChevronDown size={14} className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
       </button>
 
