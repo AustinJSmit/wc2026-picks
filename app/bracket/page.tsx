@@ -2,8 +2,9 @@ export const dynamic = 'force-dynamic';
 
 import { db } from '@/db';
 import { matches, predictions } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
+import { getCurrentLobby } from '@/lib/lobby';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 
@@ -103,6 +104,8 @@ function ConnectorColumn({ pairs, armHeight, offsetTop }: {
 export default async function BracketPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
+  const lobby = await getCurrentLobby();
+  if (!lobby) redirect('/lobby');
 
   const allMatchRows = await db.select().from(matches).orderBy(matches.kickoffAt);
   const knockoutMatches = allMatchRows.filter(m =>
@@ -111,7 +114,7 @@ export default async function BracketPage() {
 
   const matchIds = knockoutMatches.map(m => m.id);
   const userPreds = matchIds.length > 0
-    ? await db.select().from(predictions).where(eq(predictions.userId, user.id))
+    ? await db.select().from(predictions).where(and(eq(predictions.userId, user.id), eq(predictions.lobbyId, lobby.id)))
     : [];
   const predByMatch = Object.fromEntries(userPreds.map(p => [p.matchId, p]));
 

@@ -40,7 +40,7 @@ export default function AdminPanels({ predictionCount, playerCount, allUsers, cu
   currentUserId: number;
 }) {
   const router = useRouter();
-  const [modal, setModal] = useState<'resetPreds' | 'fullReset' | 'transfer' | null>(null);
+  const [modal, setModal] = useState<'resetPreds' | 'transfer' | null>(null);
   const [toUserId, setToUserId] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
@@ -58,19 +58,6 @@ export default function AdminPanels({ predictionCount, playerCount, allUsers, cu
       setStatus(`✓ Deleted ${data.deleted} prediction${data.deleted !== 1 ? 's' : ''}.`);
       router.refresh();
     } else {
-      setStatus(`Error: ${data.error}`);
-    }
-  }
-
-  async function handleFullReset() {
-    setModal(null);
-    setLoading(true);
-    const res = await fetch('/api/admin/reset', { method: 'POST' });
-    setLoading(false);
-    if (res.ok) {
-      router.push('/matches');
-    } else {
-      const data = await res.json();
       setStatus(`Error: ${data.error}`);
     }
   }
@@ -127,26 +114,6 @@ export default function AdminPanels({ predictionCount, playerCount, allUsers, cu
         </CardContent>
       </Card>
 
-      {/* Full Reset */}
-      <Card>
-        <CardHeader>
-          <CardTitle>New Tournament</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Wipe everything — all matches and all predictions. Use this to start fresh for a new tournament.
-            After resetting, visit <strong>/matches</strong> to reload the schedule from ESPN.
-          </p>
-          <Button
-            onClick={() => setModal('fullReset')}
-            disabled={loading}
-            className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-          >
-            Full reset
-          </Button>
-        </CardContent>
-      </Card>
-
       {/* Transfer Host */}
       <Card>
         <CardHeader>
@@ -189,16 +156,6 @@ export default function AdminPanels({ predictionCount, playerCount, allUsers, cu
           confirmLabel="Delete all picks"
           destructive
           onConfirm={handleResetPredictions}
-          onCancel={() => setModal(null)}
-        />
-      )}
-      {modal === 'fullReset' && (
-        <ConfirmModal
-          title="Full reset?"
-          message="This will delete ALL matches and ALL predictions. Player accounts are kept. Visit /matches after to reload the schedule. This cannot be undone."
-          confirmLabel="Reset everything"
-          destructive
-          onConfirm={handleFullReset}
           onCancel={() => setModal(null)}
         />
       )}

@@ -51,8 +51,8 @@ Click **Initialize Database**. That's it — no terminal, no commands.
 ### 4. Register and play
 
 - Visit your site and click **Sign up**
-- The **first person to register** automatically becomes the host (admin)
-- Share the URL with friends — they sign up and start making picks
+- Create your own private **lobby** and get a shareable join code, or join a friend's lobby with their code
+- Share the code (not just the URL) with friends — anyone who visits the site can create their own separate lobby with their own friends
 - Match data loads automatically when anyone visits `/matches`
 
 ---
@@ -85,25 +85,18 @@ Then visit `http://localhost:3000/setup` to initialize the database.
 - **Dark mode** — follows system default; toggle in nav dropdown (System / Light / Dark); FOUC-free
 - **Live polling** — matches page syncs every time it loads; live matches refresh every 60 seconds automatically
 - **Lineup pitch** — portrait pitch view with goal-net visuals at each end, available for upcoming, live, and finished matches
+- **Private lobbies** (`/lobby`) — create your own group with a shareable 6-character join code, join others' lobbies with a code, and belong to multiple lobbies at once (e.g. one with college friends, one with family). Predictions and the leaderboard are scored separately per lobby; the underlying match schedule is shared by everyone.
 
 ---
 
 ## Host panel (admin features)
 
-The first person to register is automatically the host. Access the host panel via the nav dropdown → **Host Panel**.
+Whoever creates a lobby is its host. Access the host panel via the nav dropdown → **Host Panel** (only visible when you're the host of your currently selected lobby).
 
 | Feature | Description |
 |---|---|
-| **Reset predictions** | Delete all picks (keeps match data). Useful for a re-do. |
-| **New tournament** | Full wipe — all matches and predictions. Visit `/matches` after to reload. |
-| **Transfer host** | Hand control to another player. You are logged out immediately. |
-
-### Starting a new season
-
-When the World Cup ends and you want to play again for another tournament:
-
-1. Go to **Host Panel** → **New Tournament** → confirm
-2. Visit `/matches` — the new tournament's schedule loads automatically
+| **Reset predictions** | Delete all picks in *your current lobby only* (keeps match data and other lobbies untouched). Useful for a re-do. |
+| **Transfer host** | Hand control to another member of your current lobby. You are logged out immediately. |
 
 ---
 
@@ -130,10 +123,11 @@ These endpoints are also accessible via HTTP for power users:
 |---|---|---|
 | `/api/setup` | POST | Initialize or upgrade the database schema |
 | `/api/matches/sync` | POST | Sync match schedule + scores from ESPN |
-| `/api/export` | GET | Download CSV of all players and points (host only) |
-| `/api/admin/reset-predictions` | POST | Delete all predictions, keep matches (host only) |
-| `/api/admin/reset` | POST | Delete all matches and predictions (host only) |
-| `/api/admin/clear-events` | POST | Clear goals/bookings/stats for re-sync (host only) |
+| `/api/lobbies` | POST | Create a new lobby and become its host |
+| `/api/lobbies/join` | POST | Join a lobby by code |
+| `/api/lobbies/switch` | POST | Switch your active lobby |
+| `/api/export` | GET | Download CSV of your current lobby's players and points (host only) |
+| `/api/admin/reset-predictions` | POST | Delete all predictions in your current lobby, keep matches (host only) |
 
 ---
 

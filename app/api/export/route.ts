@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { users, predictions } from '@/db/schema';
-import { eq, sql } from 'drizzle-orm';
-import { getCurrentUser } from '@/lib/auth';
+import { users, predictions, lobbyMembers } from '@/db/schema';
+import { eq, and, sql } from 'drizzle-orm';
+import { getCurrentLobby } from '@/lib/lobby';
 
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user?.isAdmin) {
+  const lobby = await getCurrentLobby();
+  if (!lobby?.isHost) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -22,8 +22,10 @@ export async function GET() {
       totalPoints: sql<number>`coalesce(sum(${predictions.points}), 0)`.as('total_points'),
       totalPredictions: sql<number>`count(${predictions.id})`.as('total_predictions'),
     })
-    .from(users)
-    .leftJoin(predictions, eq(predictions.userId, users.id))
+    .from(lobbyMembers)
+    .innerJoin(users, eq(users.id, lobbyMembers.userId))
+    .leftJoin(predictions, and(eq(predictions.userId, users.id), eq(predictions.lobbyId, lobby.id)))
+    .where(eq(lobbyMembers.lobbyId, lobby.id))
     .groupBy(users.id)
     .orderBy(sql`total_points desc`);
 

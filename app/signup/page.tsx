@@ -38,7 +38,7 @@ export default function SignupPage() {
       return;
     }
 
-    router.push('/matches');
+    router.push('/lobby');
     router.refresh();
   }
 

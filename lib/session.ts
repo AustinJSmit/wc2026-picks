@@ -6,6 +6,7 @@ export interface SessionData {
   email?: string;
   displayName?: string;
   timezone?: string;
+  currentLobbyId?: number;
 }
 
 export const sessionOptions = {

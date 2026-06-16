@@ -50,20 +50,40 @@ export async function POST() {
     `;
 
     await sql`
+      CREATE TABLE IF NOT EXISTS lobbies (
+        id SERIAL PRIMARY KEY,
+        code TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS lobby_members (
+        id SERIAL PRIMARY KEY,
+        lobby_id INTEGER NOT NULL REFERENCES lobbies(id),
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        is_host BOOLEAN NOT NULL DEFAULT FALSE,
+        joined_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        UNIQUE(lobby_id, user_id)
+      )
+    `;
+
+    await sql`
       CREATE TABLE IF NOT EXISTS predictions (
         id SERIAL PRIMARY KEY,
+        lobby_id INTEGER NOT NULL REFERENCES lobbies(id),
         user_id INTEGER NOT NULL REFERENCES users(id),
         match_id INTEGER NOT NULL REFERENCES matches(id),
         pred_home INTEGER NOT NULL,
         pred_away INTEGER NOT NULL,
         points INTEGER,
         submitted_at TIMESTAMP DEFAULT NOW() NOT NULL,
-        UNIQUE(user_id, match_id)
+        UNIQUE(lobby_id, user_id, match_id)
       )
     `;
 
-    // Promote the first-registered user to host/admin
-    await sql`UPDATE users SET is_admin = TRUE WHERE id = (SELECT MIN(id) FROM users)`;
+    await sql`ALTER TABLE predictions ADD COLUMN IF NOT EXISTS lobby_id INTEGER REFERENCES lobbies(id)`;
 
     return NextResponse.json({ ok: true, message: 'Database ready' });
   } catch (err) {

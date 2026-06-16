@@ -13,7 +13,7 @@ export default function SetupPage() {
             <h1 className="text-2xl font-bold">World Cup 2026</h1>
             <p className="text-muted-foreground text-sm">
               One-time setup — initializes your database.
-              <br />The first person to sign up becomes the host.
+              <br />After signing up, create your own private lobby and invite friends with a code.
             </p>
           </div>
           <SetupButton />

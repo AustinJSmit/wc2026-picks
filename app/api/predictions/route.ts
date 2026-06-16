@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { matches, predictions, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { getSession } from '@/lib/session';
+import { getCurrentLobby } from '@/lib/lobby';
 
 const postSchema = z.object({
   matchId: z.number().int().positive(),
@@ -16,6 +17,8 @@ export async function GET(req: NextRequest) {
   if (!session.userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const lobby = await getCurrentLobby();
+  if (!lobby) return NextResponse.json({ error: 'No active lobby' }, { status: 400 });
 
   const matchId = parseInt(req.nextUrl.searchParams.get('matchId') ?? '', 10);
   if (!matchId) return NextResponse.json({ error: 'matchId required' }, { status: 400 });
@@ -37,7 +40,7 @@ export async function GET(req: NextRequest) {
     })
     .from(predictions)
     .innerJoin(users, eq(users.id, predictions.userId))
-    .where(eq(predictions.matchId, matchId))
+    .where(and(eq(predictions.matchId, matchId), eq(predictions.lobbyId, lobby.id)))
     .orderBy(users.displayName);
 
   return NextResponse.json(
@@ -55,6 +58,10 @@ export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session.userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const lobby = await getCurrentLobby();
+  if (!lobby) {
+    return NextResponse.json({ error: 'No active lobby' }, { status: 400 });
   }
 
   const body = await req.json();
@@ -76,9 +83,9 @@ export async function POST(req: NextRequest) {
 
   await db
     .insert(predictions)
-    .values({ userId: session.userId, matchId, predHome, predAway })
+    .values({ lobbyId: lobby.id, userId: session.userId, matchId, predHome, predAway })
     .onConflictDoUpdate({
-      target: [predictions.userId, predictions.matchId],
+      target: [predictions.lobbyId, predictions.userId, predictions.matchId],
       set: { predHome, predAway, submittedAt: new Date() },
     });
 

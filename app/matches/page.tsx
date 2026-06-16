@@ -2,8 +2,9 @@ export const dynamic = 'force-dynamic';
 
 import { db } from '@/db';
 import { matches, predictions } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
+import { getCurrentLobby } from '@/lib/lobby';
 import { redirect } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -81,13 +82,15 @@ function MatchRow({ match, pred, tz }: {
 export default async function MatchesPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
+  const lobby = await getCurrentLobby();
+  if (!lobby) redirect('/lobby');
 
   const allMatches = await db.select().from(matches).orderBy(matches.kickoffAt);
 
   const userPredictions = await db
     .select()
     .from(predictions)
-    .where(eq(predictions.userId, user.id));
+    .where(and(eq(predictions.userId, user.id), eq(predictions.lobbyId, lobby.id)));
 
   const predByMatch = Object.fromEntries(userPredictions.map(p => [p.matchId, p]));
   const now = new Date();

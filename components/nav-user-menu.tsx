@@ -6,7 +6,7 @@ import { ChevronDown } from 'lucide-react';
 import ThemeToggle from './theme-toggle';
 import LogoutButton from './logout-button';
 
-export default function NavUserMenu({ isAdmin }: { isAdmin: boolean }) {
+export default function NavUserMenu({ isHost }: { isHost: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -47,7 +47,14 @@ export default function NavUserMenu({ isAdmin }: { isAdmin: boolean }) {
           >
             Profile
           </Link>
-          {isAdmin && (
+          <Link
+            href="/lobby"
+            onClick={close}
+            className="block px-4 py-2 text-sm hover:bg-muted transition-colors"
+          >
+            My Lobbies
+          </Link>
+          {isHost && (
             <Link
               href="/admin"
               onClick={close}

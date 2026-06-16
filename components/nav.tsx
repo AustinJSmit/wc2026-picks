@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import { Trophy } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
+import { getCurrentLobby } from '@/lib/lobby';
 import ThemeToggle from './theme-toggle';
 import NavUserMenu from './nav-user-menu';
 
 export default async function Nav() {
   const user = await getCurrentUser();
+  const lobby = user ? await getCurrentLobby() : null;
 
   return (
     <nav className="bg-primary text-primary-foreground shadow-md">
@@ -27,7 +29,7 @@ export default async function Nav() {
               <Link href="/leaderboard" className="opacity-90 hover:opacity-100 transition-opacity whitespace-nowrap">
                 Leaderboard
               </Link>
-              <NavUserMenu isAdmin={user.isAdmin ?? false} />
+              <NavUserMenu isHost={lobby?.isHost ?? false} />
             </>
           ) : (
             <>

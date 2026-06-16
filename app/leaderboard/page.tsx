@@ -1,12 +1,14 @@
 export const dynamic = 'force-dynamic';
 
 import { db } from '@/db';
-import { users, predictions } from '@/db/schema';
-import { sql, eq } from 'drizzle-orm';
+import { users, predictions, lobbyMembers } from '@/db/schema';
+import { sql, eq, and } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
+import { getCurrentLobby } from '@/lib/lobby';
+import { redirect } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-async function getLeaderboard() {
+async function getLeaderboard(lobbyId: number) {
   return db
     .select({
       id: users.id,
@@ -17,8 +19,10 @@ async function getLeaderboard() {
       exactScores: sql<number>`count(case when ${predictions.points} = 2 then 1 end)`.as('exact_scores'),
       correctResults: sql<number>`count(case when ${predictions.points} >= 1 then 1 end)`.as('correct_results'),
     })
-    .from(users)
-    .leftJoin(predictions, eq(predictions.userId, users.id))
+    .from(lobbyMembers)
+    .innerJoin(users, eq(users.id, lobbyMembers.userId))
+    .leftJoin(predictions, and(eq(predictions.userId, users.id), eq(predictions.lobbyId, lobbyId)))
+    .where(eq(lobbyMembers.lobbyId, lobbyId))
     .groupBy(users.id, users.displayName, users.favoriteTeam)
     .orderBy(sql`total_points desc nulls last`);
 }
@@ -31,7 +35,9 @@ function rankColor(i: number) {
 }
 
 export default async function LeaderboardPage() {
-  const [leaderboard, user] = await Promise.all([getLeaderboard(), getCurrentUser()]);
+  const lobby = await getCurrentLobby();
+  if (!lobby) redirect('/lobby');
+  const [leaderboard, user] = await Promise.all([getLeaderboard(lobby.id), getCurrentUser()]);
 
   return (
     <div className="max-w-lg mx-auto space-y-6">

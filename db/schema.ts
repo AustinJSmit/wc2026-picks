@@ -35,16 +35,34 @@ export const matches = pgTable('matches', {
   attendance: integer('attendance'),
 });
 
+export const lobbies = pgTable('lobbies', {
+  id: serial('id').primaryKey(),
+  code: text('code').unique().notNull(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const lobbyMembers = pgTable('lobby_members', {
+  id: serial('id').primaryKey(),
+  lobbyId: integer('lobby_id').references(() => lobbies.id).notNull(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  isHost: boolean('is_host').notNull().default(false),
+  joinedAt: timestamp('joined_at').defaultNow().notNull(),
+}, (t) => [unique().on(t.lobbyId, t.userId)]);
+
 export const predictions = pgTable('predictions', {
   id: serial('id').primaryKey(),
+  lobbyId: integer('lobby_id').references(() => lobbies.id).notNull(),
   userId: integer('user_id').references(() => users.id).notNull(),
   matchId: integer('match_id').references(() => matches.id).notNull(),
   predHome: integer('pred_home').notNull(),
   predAway: integer('pred_away').notNull(),
   points: integer('points'),
   submittedAt: timestamp('submitted_at').defaultNow().notNull(),
-}, (t) => [unique().on(t.userId, t.matchId)]);
+}, (t) => [unique().on(t.lobbyId, t.userId, t.matchId)]);
 
 export type User = typeof users.$inferSelect;
 export type Match = typeof matches.$inferSelect;
 export type Prediction = typeof predictions.$inferSelect;
+export type Lobby = typeof lobbies.$inferSelect;
+export type LobbyMember = typeof lobbyMembers.$inferSelect;

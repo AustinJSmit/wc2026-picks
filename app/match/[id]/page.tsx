@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { matches, predictions } from '@/db/schema';
 import { eq, and, or } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
+import { getCurrentLobby } from '@/lib/lobby';
 import { redirect, notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -417,6 +418,8 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const user = await getCurrentUser();
   if (!user) redirect('/login');
+  const lobby = await getCurrentLobby();
+  if (!lobby) redirect('/lobby');
 
   const [match] = await db.select().from(matches).where(eq(matches.id, Number(id)));
   if (!match) notFound();
@@ -424,7 +427,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   const [existingPred] = await db
     .select()
     .from(predictions)
-    .where(and(eq(predictions.userId, user.id), eq(predictions.matchId, match.id)));
+    .where(and(eq(predictions.userId, user.id), eq(predictions.matchId, match.id), eq(predictions.lobbyId, lobby.id)));
 
   const isLocked = new Date() >= match.kickoffAt;
   const isFinished = match.status === 'FINISHED';

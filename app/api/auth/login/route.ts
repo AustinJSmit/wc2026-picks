@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/db';
-import { users } from '@/db/schema';
+import { users, lobbyMembers } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyPassword } from '@/lib/auth';
 import { getSession } from '@/lib/session';
@@ -35,6 +35,15 @@ export async function POST(req: NextRequest) {
   session.email = user.email;
   session.displayName = user.displayName;
   session.timezone = user.timezone ?? undefined;
+
+  const [firstMembership] = await db
+    .select({ lobbyId: lobbyMembers.lobbyId })
+    .from(lobbyMembers)
+    .where(eq(lobbyMembers.userId, user.id))
+    .orderBy(lobbyMembers.joinedAt)
+    .limit(1);
+  session.currentLobbyId = firstMembership?.lobbyId;
+
   await session.save();
 
   return NextResponse.json({ ok: true, displayName: user.displayName });
