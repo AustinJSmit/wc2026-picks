@@ -46,7 +46,7 @@ export default function NavUserMenu({ isHost }: { isHost: boolean }) {
             onClick={close}
             className="block px-4 py-3 text-sm hover:bg-muted transition-colors"
           >
-            Settings
+            General
           </Link>
           <Link
             href="/profile"
