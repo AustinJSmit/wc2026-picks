@@ -35,30 +35,30 @@ export default function NavUserMenu({ isHost }: { isHost: boolean }) {
       {open && (
         <div className="absolute right-0 top-full mt-2 w-48 rounded-lg border bg-card text-card-foreground shadow-lg z-50 py-1 overflow-hidden">
           <div className="md:hidden">
-            <Link href="/matches" onClick={close} className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Matches</Link>
-            <Link href="/bracket" onClick={close} className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Bracket</Link>
-            <Link href="/leaderboard" onClick={close} className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Leaderboard</Link>
-            <Link href="/history" onClick={close} className="block px-4 py-2 text-sm hover:bg-muted transition-colors">History</Link>
+            <Link href="/matches" onClick={close} className="block px-4 py-3 text-sm hover:bg-muted transition-colors">Matches</Link>
+            <Link href="/bracket" onClick={close} className="block px-4 py-3 text-sm hover:bg-muted transition-colors">Bracket</Link>
+            <Link href="/leaderboard" onClick={close} className="block px-4 py-3 text-sm hover:bg-muted transition-colors">Leaderboard</Link>
+            <Link href="/history" onClick={close} className="block px-4 py-3 text-sm hover:bg-muted transition-colors">History</Link>
             <div className="border-t my-1" />
           </div>
           <Link
             href="/settings"
             onClick={close}
-            className="block px-4 py-2 text-sm hover:bg-muted transition-colors"
+            className="block px-4 py-3 text-sm hover:bg-muted transition-colors"
           >
             Settings
           </Link>
           <Link
             href="/profile"
             onClick={close}
-            className="block px-4 py-2 text-sm hover:bg-muted transition-colors"
+            className="block px-4 py-3 text-sm hover:bg-muted transition-colors"
           >
             Profile
           </Link>
           <Link
             href="/lobby"
             onClick={close}
-            className="block px-4 py-2 text-sm hover:bg-muted transition-colors"
+            className="block px-4 py-3 text-sm hover:bg-muted transition-colors"
           >
             My Lobbies
           </Link>
@@ -66,18 +66,18 @@ export default function NavUserMenu({ isHost }: { isHost: boolean }) {
             <Link
               href="/admin"
               onClick={close}
-              className="block px-4 py-2 text-sm hover:bg-muted transition-colors"
+              className="block px-4 py-3 text-sm hover:bg-muted transition-colors"
             >
               Host Panel
             </Link>
           )}
           <div className="border-t my-1" />
-          <div className="flex items-center justify-between px-4 py-2">
+          <div className="flex items-center justify-between px-4 py-3">
             <span className="text-xs text-muted-foreground">Theme</span>
             <ThemeToggle />
           </div>
           <div className="border-t my-1" />
-          <div className="px-4 py-1.5">
+          <div className="px-4 py-2.5">
             <LogoutButton />
           </div>
         </div>
