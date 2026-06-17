@@ -27,12 +27,20 @@ export default function NavUserMenu({ isHost }: { isHost: boolean }) {
         className="flex items-center gap-1 opacity-90 hover:opacity-100 transition-opacity text-sm font-medium whitespace-nowrap"
         aria-expanded={open}
       >
-        Settings
+        <span className="hidden md:inline">Settings</span>
+        <span className="md:hidden">Menu</span>
         <ChevronDown size={14} className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
         <div className="absolute right-0 top-full mt-2 w-48 rounded-lg border bg-card text-card-foreground shadow-lg z-50 py-1 overflow-hidden">
+          <div className="md:hidden">
+            <Link href="/matches" onClick={close} className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Matches</Link>
+            <Link href="/bracket" onClick={close} className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Bracket</Link>
+            <Link href="/leaderboard" onClick={close} className="block px-4 py-2 text-sm hover:bg-muted transition-colors">Leaderboard</Link>
+            <Link href="/history" onClick={close} className="block px-4 py-2 text-sm hover:bg-muted transition-colors">History</Link>
+            <div className="border-t my-1" />
+          </div>
           <Link
             href="/settings"
             onClick={close}

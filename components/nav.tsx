@@ -33,16 +33,16 @@ export default async function Nav() {
         <div className="flex items-center gap-4 text-sm font-medium">
           {user ? (
             <>
-              <Link href="/matches" className="opacity-90 hover:opacity-100 transition-opacity whitespace-nowrap">
+              <Link href="/matches" className="hidden md:inline opacity-90 hover:opacity-100 transition-opacity whitespace-nowrap">
                 Matches
               </Link>
-              <Link href="/bracket" className="opacity-90 hover:opacity-100 transition-opacity whitespace-nowrap">
+              <Link href="/bracket" className="hidden md:inline opacity-90 hover:opacity-100 transition-opacity whitespace-nowrap">
                 Bracket
               </Link>
-              <Link href="/leaderboard" className="opacity-90 hover:opacity-100 transition-opacity whitespace-nowrap">
+              <Link href="/leaderboard" className="hidden md:inline opacity-90 hover:opacity-100 transition-opacity whitespace-nowrap">
                 Leaderboard
               </Link>
-              <Link href="/history" className="opacity-90 hover:opacity-100 transition-opacity whitespace-nowrap">
+              <Link href="/history" className="hidden md:inline opacity-90 hover:opacity-100 transition-opacity whitespace-nowrap">
                 History
               </Link>
               <NavUserMenu isHost={lobby?.isHost ?? false} />
