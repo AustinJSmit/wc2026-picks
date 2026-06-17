@@ -6,14 +6,11 @@ import NavUserMenu from './nav-user-menu';
 
 function SoccerBall() {
   return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-      <circle cx="10" cy="10" r="9" />
-      <polygon points="10,7 12.85,9.07 11.76,12.43 8.24,12.43 7.15,9.07" fill="currentColor" stroke="none" />
-      <line x1="10" y1="7" x2="10" y2="1" />
-      <line x1="12.85" y1="9.07" x2="18.55" y2="7.21" />
-      <line x1="11.76" y1="12.43" x2="15.28" y2="17.29" />
-      <line x1="8.24" y1="12.43" x2="4.72" y2="17.29" />
-      <line x1="7.15" y1="9.07" x2="1.45" y2="7.21" />
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+      <circle cx="10" cy="10" r="8.5" />
+      <path d="M1.5 10 Q10 6.5 18.5 10" />
+      <path d="M5.75 2.64 C7 6.5 13 13.5 14.25 17.36" />
+      <path d="M14.25 2.64 C13 6.5 7 13.5 5.75 17.36" />
     </svg>
   );
 }

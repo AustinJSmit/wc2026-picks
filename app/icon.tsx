@@ -21,16 +21,16 @@ export default function Icon() {
           xmlns="http://www.w3.org/2000/svg"
           width="28"
           height="28"
-          viewBox="0 0 32 32"
+          viewBox="0 0 20 20"
           fill="none"
+          stroke="white"
+          strokeWidth="1.4"
+          strokeLinecap="round"
         >
-          <circle cx="16" cy="16" r="13" stroke="white" strokeWidth="1.5" />
-          <polygon points="16,11 20.76,14.46 18.94,20.05 13.06,20.05 11.24,14.46" fill="white" />
-          <line x1="16" y1="11" x2="16" y2="3" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="20.76" y1="14.46" x2="28.38" y2="12" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="18.94" y1="20.05" x2="23.64" y2="26.53" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="13.06" y1="20.05" x2="8.36" y2="26.53" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="11.24" y1="14.46" x2="3.62" y2="12" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+          <circle cx="10" cy="10" r="8.5" />
+          <path d="M1.5 10 Q10 6.5 18.5 10" />
+          <path d="M5.75 2.64 C7 6.5 13 13.5 14.25 17.36" />
+          <path d="M14.25 2.64 C13 6.5 7 13.5 5.75 17.36" />
         </svg>
       </div>
     ),
