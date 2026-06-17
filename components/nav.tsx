@@ -1,19 +1,9 @@
 import Link from 'next/link';
+import { SoccerBall } from '@phosphor-icons/react/dist/ssr';
 import { getCurrentUser } from '@/lib/auth';
 import { getCurrentLobby } from '@/lib/lobby';
 import ThemeToggle from './theme-toggle';
 import NavUserMenu from './nav-user-menu';
-
-function SoccerBall() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-      <circle cx="10" cy="10" r="8.5" />
-      <path d="M1.5 10 Q10 6.5 18.5 10" />
-      <path d="M5.75 2.64 C7 6.5 13 13.5 14.25 17.36" />
-      <path d="M14.25 2.64 C13 6.5 7 13.5 5.75 17.36" />
-    </svg>
-  );
-}
 
 export default async function Nav() {
   const user = await getCurrentUser();
@@ -23,7 +13,7 @@ export default async function Nav() {
     <nav className="bg-primary text-primary-foreground shadow-md">
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg tracking-tight shrink-0">
-          <SoccerBall />
+          <SoccerBall size={22} weight="bold" />
           <span>World Cup 2026</span>
         </Link>
 
