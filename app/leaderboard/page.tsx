@@ -62,9 +62,9 @@ export default async function LeaderboardPage() {
             >
               <span>#</span>
               <span>Player</span>
-              <span className="text-center">Team %</span>
-              <span className="text-center">Correct (1pt)</span>
-              <span className="text-center">Exact (2pts)</span>
+              <span className="text-center leading-tight">Win %<br/><span className="opacity-60 text-[8px]">of finished</span></span>
+              <span className="text-center leading-tight">Results<br/><span className="opacity-60 text-[8px]">+1pt each</span></span>
+              <span className="text-center leading-tight">Exact Score<br/><span className="opacity-60 text-[8px]">+2pts each</span></span>
               <span className="text-center font-semibold">Pts</span>
             </div>
             <div className="divide-y">
