@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const wasReset = searchParams.get('reset') === '1';
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -49,13 +51,23 @@ export default function LoginPage() {
           <CardDescription>Log in to submit your predictions</CardDescription>
         </CardHeader>
         <CardContent>
+          {wasReset && (
+            <p className="text-sm text-primary bg-primary/10 px-3 py-2 rounded-md mb-4">
+              Password reset successfully — you can now log in.
+            </p>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
               <Input id="email" name="email" type="email" placeholder="you@example.com" required />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Link href="/forgot-password" className="text-xs text-muted-foreground hover:text-primary transition-colors">
+                  Forgot password?
+                </Link>
+              </div>
               <Input id="password" name="password" type="password" placeholder="Your password" required />
             </div>
 

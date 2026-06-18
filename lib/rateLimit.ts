@@ -40,6 +40,18 @@ export const baselineIpLimiter = new Ratelimit({
   prefix: 'rl:baseline:ip',
 });
 
+export const forgotPasswordIpLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(3, '1 h'),
+  prefix: 'rl:forgot-pw:ip',
+});
+
+export const resetPasswordIpLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, '1 h'),
+  prefix: 'rl:reset-pw:ip',
+});
+
 export function getClientIp(req: NextRequest): string {
   const forwarded = req.headers.get('x-forwarded-for');
   return forwarded?.split(',')[0]?.trim() || 'unknown';

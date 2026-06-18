@@ -286,7 +286,7 @@ function LineupsCard({ homeTeam, awayTeam, lineups }: {
 
             <div className="relative flex flex-col min-h-[560px]">
               {/* Away half — top of pitch, GK at top, attackers toward center */}
-              <div className="flex-1 flex flex-col border-b border-white/10">
+              <div className="flex-1 flex flex-col">
                 <GoalNet position="top" />
                 <div className="text-[9px] text-white/60 text-center font-semibold uppercase tracking-wider pb-0.5">
                   {awayTeam}{away.formation ? ` · ${away.formation}` : ''}

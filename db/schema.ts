@@ -66,9 +66,19 @@ export const predictions = pgTable('predictions', {
   submittedAt: timestamp('submitted_at').defaultNow().notNull(),
 }, (t) => [unique().on(t.lobbyId, t.userId, t.matchId)]);
 
+export const passwordResetTokens = pgTable('password_reset_tokens', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  usedAt: timestamp('used_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type Match = typeof matches.$inferSelect;
 export type Prediction = typeof predictions.$inferSelect;
 export type Lobby = typeof lobbies.$inferSelect;
 export type LobbyMember = typeof lobbyMembers.$inferSelect;
 export type SyncState = typeof syncState.$inferSelect;
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
