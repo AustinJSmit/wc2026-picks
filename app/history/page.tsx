@@ -33,7 +33,11 @@ async function getPredictionHistory(userId: number, lobbyId: number) {
     })
     .from(predictions)
     .innerJoin(matches, eq(predictions.matchId, matches.id))
-    .where(and(eq(predictions.userId, userId), eq(predictions.lobbyId, lobbyId)))
+    .where(and(
+      eq(predictions.userId, userId),
+      eq(predictions.lobbyId, lobbyId),
+      eq(matches.status, 'FINISHED'),
+    ))
     .orderBy(desc(matches.kickoffAt));
 }
 
@@ -115,7 +119,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
       {history.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            {isViewingOwn ? 'You haven\'t made any picks yet.' : `${targetUser.displayName} hasn't made any picks yet.`}
+            {isViewingOwn ? 'No finished matches with picks yet.' : `No finished matches with picks for ${targetUser.displayName} yet.`}
           </CardContent>
         </Card>
       ) : (

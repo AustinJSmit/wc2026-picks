@@ -13,7 +13,7 @@ A World Cup 2026 prediction game. Players create accounts, predict match scores 
 
 ## Deploy in ~5 minutes (free forever, no coding required)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/AustinJSmit/wc2026-picks&env=DATABASE_URL,SESSION_SECRET,UPSTASH_REDIS_REST_URL,UPSTASH_REDIS_REST_TOKEN,NEXT_PUBLIC_TURNSTILE_SITE_KEY,TURNSTILE_SECRET_KEY&envDescription=See%20README%20for%20setup%20instructions%20for%20each%20variable.)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/AustinJSmit/wc2026-picks&env=DATABASE_URL,SESSION_SECRET,UPSTASH_REDIS_REST_URL,UPSTASH_REDIS_REST_TOKEN,NEXT_PUBLIC_TURNSTILE_SITE_KEY,TURNSTILE_SECRET_KEY,RESEND_API_KEY,RESEND_FROM_EMAIL,NEXT_PUBLIC_APP_URL&envDescription=See%20README%20for%20setup%20instructions%20for%20each%20variable.)
 
 ### 1. Set up the database (Neon)
 
@@ -37,6 +37,9 @@ Click the **Deploy with Vercel** button above, or:
 | `UPSTASH_REDIS_REST_TOKEN` | Same Upstash REST API tab |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | [Cloudflare Turnstile](https://dash.cloudflare.com) → Application security → Turnstile → Add widget |
 | `TURNSTILE_SECRET_KEY` | Same Turnstile widget page |
+| `RESEND_API_KEY` | [resend.com](https://resend.com) → create a free account → API Keys → Create API Key |
+| `RESEND_FROM_EMAIL` | A verified sender in your Resend account (e.g. `noreply@yourdomain.com`); leave unset to use `onboarding@resend.dev` for local testing |
+| `NEXT_PUBLIC_APP_URL` | Your deployed site URL (e.g. `https://wc2026propicks.vercel.app`) — used in password reset email links |
 
 4. Click **Deploy**
 
@@ -79,6 +82,7 @@ Then visit `http://localhost:3000/setup` to initialize the database.
 ## Features
 
 - **Email + password accounts** with optional demographic profile (age, gender, country, favorite team)
+- **Password reset** — "Forgot password" flow sends a one-time reset link via email (powered by [Resend](https://resend.com)); gracefully skipped if `RESEND_API_KEY` is absent
 - **Timezone settings** — each user picks their timezone; kickoff times display locally everywhere
 - **Match list** — live matches at top with pulsing indicator; upcoming (collapsible, make picks); past results (collapsible); all auto-sync from ESPN on page load
 - **Match detail** — scoreline, goal scorers with minute + type (penalty/OG/header), yellow/red cards with player names, team statistics, lineup pitch visualization, group standings, and for knockout matches: each team's tournament history
