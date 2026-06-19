@@ -20,15 +20,9 @@ export default async function HomePage() {
         <p className="text-muted-foreground text-sm">48 teams · 104 matches · One champion</p>
       </div>
       <div className="flex gap-3 justify-center pt-2">
-        <Button render={<Link href="/signup" />}>Join the game</Button>
+        <Button render={<Link href="/signup" />}>Sign up</Button>
         <Button variant="outline" render={<Link href="/login" />}>Log in</Button>
       </div>
-      <p className="text-xs text-muted-foreground pt-2">
-        First time deploying?{' '}
-        <Link href="/setup" className="underline hover:text-foreground transition-colors">
-          Set up your game →
-        </Link>
-      </p>
     </div>
   );
 }
