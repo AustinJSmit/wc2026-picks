@@ -2,62 +2,32 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import { NextRequest, NextResponse } from 'next/server';
 
-const redis = Redis.fromEnv();
+const hasRedis = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+if (!hasRedis) console.warn('Upstash env vars not set — rate limiting disabled.');
 
-export const loginIpLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(10, '5 m'),
-  prefix: 'rl:login:ip',
-});
+const redis = hasRedis ? Redis.fromEnv() : null;
 
-export const loginEmailLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(5, '5 m'),
-  prefix: 'rl:login:email',
-});
+function makeLimiter(limiter: Ratelimit['limiter'], prefix: string): Ratelimit | null {
+  if (!redis) return null;
+  return new Ratelimit({ redis, limiter, prefix });
+}
 
-export const signupIpLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(5, '1 h'),
-  prefix: 'rl:signup:ip',
-});
-
-export const joinIpLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(10, '1 m'),
-  prefix: 'rl:join:ip',
-});
-
-export const createLobbyUserLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(5, '1 h'),
-  prefix: 'rl:lobby-create:user',
-});
-
-export const baselineIpLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(60, '1 m'),
-  prefix: 'rl:baseline:ip',
-});
-
-export const forgotPasswordIpLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(3, '1 h'),
-  prefix: 'rl:forgot-pw:ip',
-});
-
-export const resetPasswordIpLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(5, '1 h'),
-  prefix: 'rl:reset-pw:ip',
-});
+export const loginIpLimiter          = makeLimiter(Ratelimit.slidingWindow(10, '5 m'), 'rl:login:ip');
+export const loginEmailLimiter       = makeLimiter(Ratelimit.slidingWindow(5,  '5 m'), 'rl:login:email');
+export const signupIpLimiter         = makeLimiter(Ratelimit.slidingWindow(5,  '1 h'), 'rl:signup:ip');
+export const joinIpLimiter           = makeLimiter(Ratelimit.slidingWindow(10, '1 m'), 'rl:join:ip');
+export const createLobbyUserLimiter  = makeLimiter(Ratelimit.slidingWindow(5,  '1 h'), 'rl:lobby-create:user');
+export const baselineIpLimiter       = makeLimiter(Ratelimit.slidingWindow(60, '1 m'), 'rl:baseline:ip');
+export const forgotPasswordIpLimiter = makeLimiter(Ratelimit.slidingWindow(3,  '1 h'), 'rl:forgot-pw:ip');
+export const resetPasswordIpLimiter  = makeLimiter(Ratelimit.slidingWindow(5,  '1 h'), 'rl:reset-pw:ip');
 
 export function getClientIp(req: NextRequest): string {
   const forwarded = req.headers.get('x-forwarded-for');
   return forwarded?.split(',')[0]?.trim() || 'unknown';
 }
 
-export async function checkRateLimit(limiter: Ratelimit, key: string) {
+export async function checkRateLimit(limiter: Ratelimit | null, key: string) {
+  if (!limiter) return { success: true, remaining: 0, reset: Date.now() };
   try {
     const { success, remaining, reset } = await limiter.limit(key);
     return { success, remaining, reset };
