@@ -49,8 +49,11 @@ function MatchRow({ match, pred, tz }: {
               </div>
             )}
             {isLive && match.homeScore != null && (
-              <div className="text-sm font-bold text-green-600 mt-0.5">
+              <div className="text-sm font-bold text-green-600 mt-0.5 flex items-center gap-1.5">
                 {match.homeScore}–{match.awayScore}
+                {match.clock && (
+                  <span className="text-xs font-normal text-green-600/80">{match.clock}</span>
+                )}
               </div>
             )}
             {!finished && !isLive && (

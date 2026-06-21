@@ -20,6 +20,7 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState('');
+  const hasCaptcha = !!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
   useEffect(() => {
     window.onTurnstileVerify = (token: string) => setTurnstileToken(token);
@@ -32,7 +33,7 @@ export default function SignupPage() {
     e.preventDefault();
     setError('');
 
-    if (!turnstileToken) {
+    if (hasCaptcha && !turnstileToken) {
       setError('Please complete the verification check.');
       return;
     }
@@ -66,7 +67,7 @@ export default function SignupPage() {
 
   return (
     <div className="flex items-center justify-center min-h-[70vh]">
-      <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" />
+      {hasCaptcha && <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" />}
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center">
           <div className="text-4xl mb-2">⚽</div>
@@ -88,17 +89,19 @@ export default function SignupPage() {
               <Input id="password" name="password" type="password" placeholder="At least 8 characters" required minLength={8} />
             </div>
 
-            <div
-              className="cf-turnstile"
-              data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-              data-callback="onTurnstileVerify"
-            />
+            {hasCaptcha && (
+              <div
+                className="cf-turnstile"
+                data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                data-callback="onTurnstileVerify"
+              />
+            )}
 
             {error && (
               <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">{error}</p>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading || !turnstileToken}>
+            <Button type="submit" className="w-full" disabled={loading || (hasCaptcha && !turnstileToken)}>
               {loading ? 'Creating account…' : 'Create account'}
             </Button>
 

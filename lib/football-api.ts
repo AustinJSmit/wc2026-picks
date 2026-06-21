@@ -46,6 +46,7 @@ export interface ApiMatch {
   awayTeam: { name: string; crest: string };
   utcDate: string;
   status: string;
+  clock: string | null;
   stage: string;
   group: string | null;
   score: {
@@ -74,6 +75,20 @@ function normalizeESPNStatus(status: { type: { state: string; completed: boolean
   if (status.type.completed) return 'FINISHED';
   if (status.type.state === 'in') return 'LIVE';
   return 'SCHEDULED';
+}
+
+function extractESPNClock(status: { type: { state: string; description?: string }; displayClock?: string; period?: number }): string | null {
+  if (status.type.state !== 'in') return null;
+  const desc: string = status.type.description ?? '';
+  if (desc.toLowerCase().includes('halftime') || desc.toLowerCase().includes('half time')) return 'HT';
+  const clock: string = status.displayClock ?? '';
+  const period: number = status.period ?? 0;
+  const half = period === 1 ? '1H' : period === 2 ? '2H' : period === 3 ? 'ET1' : period === 4 ? 'ET2' : '';
+  if (clock && clock !== '0:00') {
+    const mins = clock.split(':')[0];
+    return half ? `${mins}' ${half}` : `${mins}'`;
+  }
+  return half || null;
 }
 
 export async function fetchESPNFixtures(): Promise<ApiMatch[]> {
@@ -121,6 +136,7 @@ export async function fetchESPNFixtures(): Promise<ApiMatch[]> {
         awayTeam: { name: away.team.displayName, crest: away.team.logo ?? '' },
         utcDate: comp.date ?? event.date,
         status: normalizeESPNStatus(comp.status),
+        clock: extractESPNClock(comp.status),
         stage,
         group: null,
         score: { fullTime: { home: parseScore(home.score), away: parseScore(away.score) } },
