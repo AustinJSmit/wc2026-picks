@@ -512,9 +512,16 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
 
           <div className="text-center px-4 shrink-0">
             {(isFinished || isLive) && match.homeScore != null ? (
-              <div className="text-5xl font-bold tabular-nums tracking-tight">
-                {match.homeScore} <span className="text-muted-foreground/60">–</span> {match.awayScore}
-              </div>
+              <>
+                <div className="text-5xl font-bold tabular-nums tracking-tight">
+                  {match.homeScore} <span className="text-muted-foreground/60">–</span> {match.awayScore}
+                </div>
+                {isLive && match.clock && (
+                  <div className="text-xs font-medium text-green-600 dark:text-green-400 mt-1.5 tracking-wide">
+                    {match.clock}
+                  </div>
+                )}
+              </>
             ) : (
               <>
                 <div className="text-2xl font-light text-muted-foreground">vs</div>
