@@ -13,7 +13,7 @@ const schema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
   displayName: z.string().min(2, 'Display name must be at least 2 characters').max(30),
   timezone: z.string().optional(),
-  turnstileToken: z.string().min(1, 'Verification check is required'),
+  turnstileToken: z.string().optional().default(''),
 });
 
 export async function POST(req: NextRequest) {
