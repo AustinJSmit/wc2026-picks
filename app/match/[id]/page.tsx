@@ -521,6 +521,11 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
                     {match.clock}
                   </div>
                 )}
+                {isFinished && match.penaltyHomeScore != null && match.penaltyAwayScore != null && (
+                  <div className="text-xs font-medium text-amber-600 dark:text-amber-400 mt-1.5">
+                    {match.penaltyHomeScore > match.penaltyAwayScore ? match.homeTeam : match.awayTeam} won {match.penaltyHomeScore}–{match.penaltyAwayScore} on penalties
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -602,6 +607,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               homeTeam={match.homeTeam}
               awayTeam={match.awayTeam}
               existing={existingPred ? { home: existingPred.predHome, away: existingPred.predAway } : null}
+              isKnockout={isKnockout}
             />
           )}
         </CardContent>

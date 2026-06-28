@@ -10,9 +10,10 @@ interface Props {
   homeTeam: string;
   awayTeam: string;
   existing: { home: number; away: number } | null;
+  isKnockout?: boolean;
 }
 
-export default function PredictionForm({ matchId, homeTeam, awayTeam, existing }: Props) {
+export default function PredictionForm({ matchId, homeTeam, awayTeam, existing, isKnockout }: Props) {
   const router = useRouter();
   const [homeScore, setHomeScore] = useState(existing?.home?.toString() ?? '');
   const [awayScore, setAwayScore] = useState(existing?.away?.toString() ?? '');
@@ -88,6 +89,12 @@ export default function PredictionForm({ matchId, homeTeam, awayTeam, existing }
           />
         </div>
       </div>
+
+      {isKnockout && (
+        <p className="text-xs text-muted-foreground text-center border border-border rounded-md px-3 py-2">
+          Predict the score at full-time or after extra time — penalty shootouts don&apos;t affect scoring.
+        </p>
+      )}
 
       {error && (
         <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md text-center">{error}</p>

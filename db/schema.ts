@@ -34,6 +34,8 @@ export const matches = pgTable('matches', {
   lineups: jsonb('lineups'),
   venue: text('venue'),
   attendance: integer('attendance'),
+  penaltyHomeScore: integer('penalty_home_score'),
+  penaltyAwayScore: integer('penalty_away_score'),
 });
 
 export const syncState = pgTable('sync_state', {

@@ -48,6 +48,11 @@ function MatchRow({ match, pred, tz }: {
                 Result: {match.homeScore}–{match.awayScore}
               </div>
             )}
+            {finished && match.penaltyHomeScore != null && match.penaltyAwayScore != null && (
+              <div className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-0.5">
+                {match.penaltyHomeScore > match.penaltyAwayScore ? match.homeTeam : match.awayTeam} won on penalties
+              </div>
+            )}
             {isLive && match.homeScore != null && (
               <div className="text-sm font-bold text-green-600 mt-0.5 flex items-center gap-1.5">
                 {match.homeScore}–{match.awayScore}

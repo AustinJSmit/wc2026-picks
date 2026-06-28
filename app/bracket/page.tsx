@@ -67,6 +67,13 @@ function MatchCard({ match }: { match: BracketMatch }) {
           )}
         </div>
 
+        {/* Penalty result */}
+        {isFinished && match.penaltyHomeScore != null && match.penaltyAwayScore != null && (
+          <div className="px-2 py-0.5 text-[9px] text-amber-600 dark:text-amber-400 font-medium text-center bg-amber-50 dark:bg-amber-950/30">
+            {match.penaltyHomeScore > match.penaltyAwayScore ? match.homeTeam : match.awayTeam} won on pens
+          </div>
+        )}
+
         {/* User prediction */}
         {match.predHome != null && (
           <div className="px-2 py-1 bg-muted/50 text-[10px] text-muted-foreground flex items-center gap-1">

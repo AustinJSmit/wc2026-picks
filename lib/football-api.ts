@@ -52,6 +52,7 @@ export interface ApiMatch {
   score: {
     fullTime: { home: number | null; away: number | null };
   };
+  penaltyScore: { home: number; away: number } | null;
   goals: ApiGoal[];
   bookings: ApiBooking[];
 }
@@ -130,6 +131,12 @@ export async function fetchESPNFixtures(): Promise<ApiMatch[]> {
         stage = SLUG_LABELS[slug] ?? slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
       }
 
+      const penHome = parseInt(home.shootoutScore, 10);
+      const penAway = parseInt(away.shootoutScore, 10);
+      const penaltyScore = (!isNaN(penHome) && !isNaN(penAway) && (penHome > 0 || penAway > 0))
+        ? { home: penHome, away: penAway }
+        : null;
+
       all.push({
         id: parseInt(event.id, 10),
         homeTeam: { name: home.team.displayName, crest: home.team.logo ?? '' },
@@ -140,6 +147,7 @@ export async function fetchESPNFixtures(): Promise<ApiMatch[]> {
         stage,
         group: null,
         score: { fullTime: { home: parseScore(home.score), away: parseScore(away.score) } },
+        penaltyScore,
         goals: [],
         bookings: [],
       });

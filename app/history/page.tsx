@@ -25,6 +25,8 @@ async function getPredictionHistory(userId: number, lobbyId: number) {
       awayTeam: matches.awayTeam,
       homeScore: matches.homeScore,
       awayScore: matches.awayScore,
+      penaltyHomeScore: matches.penaltyHomeScore,
+      penaltyAwayScore: matches.penaltyAwayScore,
       status: matches.status,
       kickoffAt: matches.kickoffAt,
       predHome: predictions.predHome,
@@ -165,6 +167,9 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
                     </span>
                     <span className="text-center text-xs tabular-nums text-muted-foreground">
                       {finished && row.homeScore != null ? `${row.homeScore}–${row.awayScore}` : '—'}
+                      {finished && row.penaltyHomeScore != null && (
+                        <span className="block text-[9px] text-amber-600 dark:text-amber-400 leading-tight">pens</span>
+                      )}
                     </span>
                     <span className={`text-center text-xs ${ptColor}`}>
                       {row.points != null ? row.points : '—'}
