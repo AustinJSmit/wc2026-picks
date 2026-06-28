@@ -92,7 +92,7 @@ export default function PredictionForm({ matchId, homeTeam, awayTeam, existing, 
 
       {isKnockout && (
         <p className="text-xs text-muted-foreground text-center border border-border rounded-md px-3 py-2">
-          Predict the score at full-time or after extra time — penalty shootouts don&apos;t affect scoring.
+          Knockout match — if it goes to penalties, your pick is scored on the result after extra time, not the shootout.
         </p>
       )}
 
